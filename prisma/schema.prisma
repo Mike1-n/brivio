@@ -1,0 +1,168 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         String        @default("TEACHER") // "ADMIN", "TEACHER", "STUDENT"
+  avatar       String?
+  quizzes      Quiz[]
+  gameSessions GameSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  icon        String   @default("BookOpen")
+  description String?
+  quizzes     Quiz[]
+  createdAt   DateTime @default(now())
+}
+
+model Quiz {
+  id           String          @id @default(cuid())
+  title        String
+  description  String?
+  coverImage   String?
+  difficulty   String          @default("MEDIUM") // "EASY", "MEDIUM", "HARD"
+  isPublic     Boolean         @default(true)
+  playsCount   Int             @default(0)
+  authorId     String
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categoryId   String?
+  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  questions    Question[]
+  gameSessions GameSession[]
+  challenges   QuizChallenge[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model Question {
+  id            String         @id @default(cuid())
+  quizId        String
+  quiz          Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text          String
+  image         String?
+  timeLimit     Int            @default(20) // seconds (5, 10, 20, 30, 60, 90, 120)
+  points        Int            @default(1000)
+  order         Int            @default(0)
+  type          String         @default("MULTIPLE_CHOICE") // "MULTIPLE_CHOICE", "TRUE_FALSE"
+  explanation   String?
+  answers       Answer[]
+  playerAnswers PlayerAnswer[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Answer {
+  id            String         @id @default(cuid())
+  questionId    String
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text          String
+  isCorrect     Boolean        @default(false)
+  order         Int            @default(0)
+  color         String         @default("red") // "red", "blue", "yellow", "green"
+  playerAnswers PlayerAnswer[]
+}
+
+model GameSession {
+  id                   String          @id @default(cuid())
+  pin                  String          @unique
+  hostId               String
+  host                 User            @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  quizId               String
+  quiz                 Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  status               String          @default("LOBBY") // "LOBBY", "STARTING", "QUESTION", "ANSWERS_LOCKED", "RESULTS", "LEADERBOARD", "PODIUM", "ENDED"
+  currentQuestionIndex Int             @default(0)
+  players              GamePlayer[]
+  gameAnalytics        GameAnalytics?
+  startedAt            DateTime        @default(now())
+  endedAt              DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+}
+
+model GamePlayer {
+  id          String         @id @default(cuid())
+  sessionId   String
+  session     GameSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  nickname    String
+  avatar      String         @default("🦊")
+  score       Int            @default(0)
+  streak      Int            @default(0)
+  rank        Int            @default(1)
+  isBot       Boolean        @default(false)
+  isConnected Boolean        @default(true)
+  socketId    String?
+  answers     PlayerAnswer[]
+  createdAt   DateTime       @default(now())
+}
+
+model PlayerAnswer {
+  id             String      @id @default(cuid())
+  playerId       String
+  player         GamePlayer  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerId       String?
+  answer         Answer?     @relation(fields: [answerId], references: [id], onDelete: SetNull)
+  isCorrect      Boolean     @default(false)
+  pointsAwarded  Int         @default(0)
+  responseTimeMs Int         @default(0)
+  createdAt      DateTime    @default(now())
+}
+
+model GameAnalytics {
+  id                 String      @id @default(cuid())
+  sessionId          String      @unique
+  session            GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  totalParticipants  Int         @default(0)
+  averageScore       Float       @default(0)
+  highestScore       Int         @default(0)
+  lowestScore        Int         @default(0)
+  averageAccuracy    Float       @default(0)
+  hardestQuestion    String?
+  easiestQuestion    String?
+  averageResponseMs  Float       @default(0)
+  createdAt          DateTime    @default(now())
+}
+
+model QuizChallenge {
+  id            String             @id @default(cuid())
+  quizId        String
+  quiz          Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  title         String?
+  deadline      DateTime?
+  timeLimitMins Int?
+  isActive      Boolean            @default(true)
+  attempts      ChallengeAttempt[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model ChallengeAttempt {
+  id             String        @id @default(cuid())
+  challengeId    String
+  challenge      QuizChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  nickname       String
+  avatar         String        @default("🦊")
+  score          Int           @default(0)
+  accuracy       Float         @default(0)
+  totalCorrect   Int           @default(0)
+  totalQuestions Int           @default(0)
+  completedAt    DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+}
