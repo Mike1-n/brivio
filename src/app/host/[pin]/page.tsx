@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Copy, Check, Play, Square, Bot, Pause, ArrowRight, Trophy, Volume2, VolumeX } from "lucide-react";
+import { Copy, Check, Play, Square, Pause, ArrowRight, Trophy, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 import { initSocket } from "@/lib/socket";
 import { soundEffects } from "@/lib/soundEffects";
@@ -12,9 +12,8 @@ export default function HostScreenPage() {
   const router = useRouter();
   const pin = (params.pin as string) || "";
 
-  // Game States from Mockup: "LOBBY" | "STARTING" | "QUESTION" | "RESULTS" | "LEADERBOARD" | "PODIUM" | "ENDED"
+  // Game States: "LOBBY" | "STARTING" | "QUESTION" | "RESULTS" | "LEADERBOARD" | "PODIUM" | "ENDED"
   const [gameState, setGameState] = useState<string>("LOBBY");
-  const [quiz, setQuiz] = useState<any>(null);
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(10);
@@ -165,399 +164,361 @@ export default function HostScreenPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E23] flex flex-col items-center justify-center p-4 md:p-8 font-sans">
-      {/* 1. GAME LOBBY VIEW FROM MOCKUP */}
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-gradient-to-b from-[#25094d] via-[#3b126d] to-[#1a0433] text-white flex flex-col justify-between p-4 sm:p-6 md:p-8 font-sans select-none overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 1. FULL-BLEED LOBBY VIEW (NO CARDS) */}
+      {/* ========================================================================= */}
       {gameState === "LOBBY" && (
-        <div className="w-full max-w-5xl bg-[#4F46E5] rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-          {/* Top Bar: Game Lobby | PIN: 487521 [Copy] */}
-          <div className="bg-[#4338CA] px-8 py-4 flex items-center justify-between text-white border-b border-indigo-400/30">
-            <h2 className="text-xl font-black tracking-wide">Game Lobby</h2>
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-6">
+          {/* Top Bar Header */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-purple-400/20 pb-4">
             <div className="flex items-center gap-3">
-              <span className="font-mono text-xl font-black bg-indigo-900/50 px-4 py-1.5 rounded-xl border border-indigo-400/30">
-                PIN: {pin}
-              </span>
+              <img src="/logo.png" alt="Brivio" className="h-10 w-auto object-contain drop-shadow" />
+              <div>
+                <span className="text-2xl font-black tracking-tight text-white block leading-none">brivio</span>
+                <span className="text-[10px] font-bold text-purple-300 tracking-wider uppercase">Live Arena Host</span>
+              </div>
+            </div>
+
+            {/* Central Game PIN Callout */}
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 px-5 py-2.5 rounded-2xl shadow-xl">
+              <div className="text-left">
+                <span className="text-[10px] font-extrabold text-purple-200 uppercase tracking-widest block">Join at /play</span>
+                <span className="font-mono text-2xl sm:text-3xl font-black text-amber-300 tracking-wider">
+                  {pin}
+                </span>
+              </div>
               <button
                 onClick={handleCopyPin}
-                className="px-3 py-1.5 bg-white text-indigo-700 text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-50 transition flex items-center gap-1"
+                className="px-3.5 py-2 bg-white text-purple-950 font-black text-xs rounded-xl shadow hover:bg-purple-50 transition flex items-center gap-1.5 active:scale-95 ml-2"
               >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-          </div>
 
-          {/* Lobby Body */}
-          <div className="p-8 md:p-12 flex flex-col items-center space-y-8 text-center text-white">
-            <div className="space-y-1">
-              <p className="text-indigo-200 text-sm font-semibold">Waiting for players to join...</p>
-              <h1 className="text-4xl sm:text-5xl font-black tracking-tight">
-                {players.length} Players Joined
-              </h1>
-            </div>
-
-            {/* 2-Column Player Avatar Grid from Mockup */}
-            <div className="w-full max-w-3xl grid grid-cols-2 sm:grid-cols-4 gap-4 max-h-[320px] overflow-y-auto p-4 bg-indigo-900/30 rounded-2xl border border-indigo-400/20">
-              {players.length === 0 ? (
-                <div className="col-span-full py-12 text-indigo-200 font-bold">
-                  Open <span className="underline font-mono">/play</span> and enter PIN: <span className="font-mono text-white text-xl">{pin}</span>
-                </div>
-              ) : (
-                players.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/15 flex items-center gap-2.5 text-left"
-                  >
-                    <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-base shadow-sm">
-                      {p.avatar || "🦁"}
-                    </span>
-                    <span className="font-bold text-sm truncate text-white">{p.nickname}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+            {/* Start / End Controls */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleStartGame}
                 disabled={players.length === 0}
-                className="px-8 py-3.5 bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-emerald-500/30 transition flex items-center gap-2 transform active:scale-95"
+                className="px-7 py-3 bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-600 text-white font-black text-base rounded-2xl shadow-xl shadow-emerald-500/30 transition flex items-center gap-2 transform active:scale-95"
               >
                 <Play className="w-5 h-5 fill-white" />
                 Start Game
               </button>
               <button
                 onClick={handleEndGame}
-                className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl transition flex items-center gap-2"
+                className="px-4 py-3 bg-rose-600/80 hover:bg-rose-600 text-white font-bold text-sm rounded-2xl border border-rose-500/30 transition flex items-center gap-1.5"
               >
                 <Square className="w-4 h-4 fill-white" />
-                End Game
+                End
               </button>
             </div>
           </div>
+
+          {/* Center Waiting Hero + Live Player Grid */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 min-h-0">
+            <div className="space-y-1">
+              <p className="text-purple-200 text-sm font-semibold tracking-wide">Waiting for players to connect...</p>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white">
+                {players.length} {players.length === 1 ? "Player" : "Players"} in the Arena
+              </h1>
+            </div>
+
+            {/* Joined Players Dynamic Flow */}
+            <div className="w-full max-w-5xl flex flex-wrap items-center justify-center gap-3 md:gap-4 max-h-[46vh] overflow-y-auto p-4 custom-scrollbar">
+              {players.length === 0 ? (
+                <div className="py-12 px-6 rounded-2xl bg-white/5 border border-dashed border-white/15 text-purple-200 text-base font-bold">
+                  Ask players to go to <span className="underline font-mono text-white">/play</span> and enter PIN: <span className="font-mono text-amber-300 text-2xl font-black">{pin}</span>
+                </div>
+              ) : (
+                players.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3 px-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 flex items-center gap-3 shadow-lg transform hover:scale-105 transition"
+                  >
+                    <span className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-xl shadow-inner">
+                      {p.avatar || "🦁"}
+                    </span>
+                    <span className="font-black text-sm text-white">{p.nickname}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Host Footer Tips */}
+          <div className="flex items-center justify-between text-xs text-purple-300/80 border-t border-purple-400/20 pt-3">
+            <span>Press <strong>Start Game</strong> when all participants are ready</span>
+            <span className="font-mono">Room PIN: {pin}</span>
+          </div>
         </div>
       )}
 
+      {/* ========================================================================= */}
       {/* 2. STARTING COUNTDOWN */}
+      {/* ========================================================================= */}
       {gameState === "STARTING" && (
-        <div className="text-center space-y-6 text-white animate-pulse">
-          <h2 className="text-2xl font-black uppercase tracking-widest text-indigo-400">Get Ready!</h2>
-          <div className="w-40 h-40 rounded-full bg-indigo-600 border-4 border-indigo-400 flex items-center justify-center text-7xl font-black shadow-2xl mx-auto">
+        <div className="h-full flex-1 flex flex-col items-center justify-center text-center space-y-6 text-white animate-pulse">
+          <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-widest text-amber-300">Get Ready!</h2>
+          <div className="w-44 h-44 rounded-full bg-indigo-600 border-4 border-indigo-400 flex items-center justify-center text-8xl font-black shadow-2xl mx-auto ring-8 ring-indigo-500/20">
             {countdown}
           </div>
-          <p className="text-lg font-bold text-slate-300">Question incoming...</p>
+          <p className="text-xl font-bold text-purple-200">First question incoming...</p>
         </div>
       )}
 
-      {/* 3. LIVE GAME QUESTION VIEW FROM MOCKUP */}
+      {/* ========================================================================= */}
+      {/* 3. FULL-BLEED LIVE QUESTION & RESULTS VIEW (NO CARDS) */}
+      {/* ========================================================================= */}
       {(gameState === "QUESTION" || gameState === "RESULTS") && currentQuestion && (
-        <div className="w-full max-w-6xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col text-slate-900">
-          {/* Top Purple Bar: Live Game - Question 4 of 10 | Skip Question | Next Question | PIN */}
-          <div className="bg-[#4F46E5] px-8 py-4 flex flex-wrap items-center justify-between text-white gap-4">
-            <h2 className="text-lg font-black tracking-wide">
-              Live Game — Question {questionIndex + 1} of {totalQuestions}
-            </h2>
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-4">
+          {/* Top Bar Header */}
+          <div className="flex items-center justify-between border-b border-purple-400/20 pb-3 shrink-0">
             <div className="flex items-center gap-3">
-              <span className="font-mono text-base font-black bg-indigo-900/50 px-3 py-1 rounded-lg border border-indigo-400/30">
+              <span className="px-3.5 py-1.5 bg-white/10 rounded-xl text-xs sm:text-sm font-black border border-white/15">
+                Question {questionIndex + 1} of {totalQuestions}
+              </span>
+              <span className="font-mono text-xs sm:text-sm font-black bg-indigo-900/60 px-3 py-1.5 rounded-xl border border-indigo-400/30">
                 PIN: {pin}
               </span>
-              
+            </div>
+
+            {/* Countdown Timer */}
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-amber-400 flex items-center justify-center text-2xl sm:text-3xl font-black text-amber-300 bg-purple-950/80 shadow-2xl ring-4 ring-amber-400/20">
+              {timeRemaining}
+            </div>
+
+            {/* Host Controls */}
+            <div className="flex items-center gap-2 sm:gap-3">
               {gameState === "QUESTION" && (
                 <button
                   onClick={handleSkipQuestion}
-                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-lg transition shadow flex items-center gap-1.5"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95"
                 >
-                  <ArrowRight className="w-3.5 h-3.5" /> Skip Question
+                  <ArrowRight className="w-4 h-4" /> Skip
                 </button>
               )}
 
               {gameState === "RESULTS" && (
                 <button
-                  onClick={handleNextQuestion}
-                  className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black rounded-lg transition shadow flex items-center gap-1.5"
+                  onClick={handleShowLeaderboard}
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95"
                 >
-                  <ArrowRight className="w-3.5 h-3.5" /> Next Question
+                  Leaderboard <ArrowRight className="w-4 h-4" />
                 </button>
               )}
 
               <button
                 onClick={() => setIsPaused(!isPaused)}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
+                className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-bold rounded-xl transition flex items-center gap-1"
               >
-                <Pause className="w-3.5 h-3.5" /> {isPaused ? "Resume" : "Pause"}
+                <Pause className="w-4 h-4" /> {isPaused ? "Resume" : "Pause"}
               </button>
             </div>
           </div>
 
-          {/* Main Question + Answer Grid + Stats Card */}
-          <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left 8 cols: Timer, Question Prompt, Image, 4 Answer Bars */}
-            <div className="lg:col-span-8 space-y-6">
-              {/* Question + Timer */}
-              <div className="flex items-center gap-6">
-                {/* Circle Countdown Timer from Mockup */}
-                <div className="w-20 h-20 rounded-full border-4 border-indigo-600 flex items-center justify-center text-2xl font-black text-indigo-700 bg-indigo-50 shadow-inner flex-shrink-0">
-                  {timeRemaining}
-                </div>
-
-                <div className="flex-1">
-                  <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-snug">
-                    {currentQuestion.text}
-                  </h1>
-                </div>
-
-                {currentQuestion.image && (
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">
-                    <img src={currentQuestion.image} alt="Question media" className="w-full h-full object-cover" />
-                  </div>
-                )}
+          {/* Center Question Prompt & Media */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 my-auto min-h-0 space-y-3">
+            {currentQuestion.image && (
+              <div className="max-h-36 sm:max-h-48 w-auto max-w-full rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
+                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-36 sm:max-h-48" />
               </div>
+            )}
+            <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white leading-tight max-w-5xl">
+              {currentQuestion.text}
+            </h1>
+          </div>
 
-              {/* Horizontal Answer Bars (Supports 2 for True/False or 4 for Multiple Choice) */}
-              <div className="space-y-3">
-                {currentQuestion.answers?.map((ans: any, idx: number) => {
-                  const letter = ["A", "B", "C", "D"][idx];
-                  const isTF = currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2;
-                  
-                  // Color for TF or MC
-                  let barColor = "bg-[#3B82F6] text-white"; // Default Blue
-                  if (isTF) {
-                    barColor = ans.text.toLowerCase().includes("true") ? "bg-[#3B82F6] text-white" : "bg-[#EF4444] text-white";
-                  } else {
-                    const barColors = [
-                      "bg-[#EF4444] text-white", // Red
-                      "bg-[#3B82F6] text-white", // Blue
-                      "bg-[#F59E0B] text-white", // Yellow/Orange
-                      "bg-[#10B981] text-white", // Green
-                    ];
-                    barColor = barColors[idx % 4];
-                  }
+          {/* Full-Width 2x2 Answers Display Across Bottom */}
+          <div className={`w-full grid gap-3 sm:gap-4 shrink-0 max-h-[38vh] min-h-[140px] ${
+            (currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2)
+              ? "grid-cols-2 grid-rows-1"
+              : "grid-cols-1 sm:grid-cols-2 grid-rows-2"
+          }`}>
+            {currentQuestion.answers?.map((ans: any, idx: number) => {
+              const isTF = currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2;
+              const isTrue = (ans.text || "").toLowerCase().includes("true");
 
-                  const isCorrect = ans.isCorrect;
-                  const isRevealed = gameState === "RESULTS";
+              const choiceShapes = [
+                { bg: "bg-[#E21B3C] border-b-4 border-[#9c1228]", icon: "▲" },
+                { bg: "bg-[#1368CE] border-b-4 border-[#0d4a94]", icon: "◆" },
+                { bg: "bg-[#D89E00] border-b-4 border-[#9e7400]", icon: "●" },
+                { bg: "bg-[#26890C] border-b-4 border-[#1a5e08]", icon: "■" },
+              ];
 
-                  return (
-                    <div
-                      key={ans.id || idx}
-                      className={`p-4 px-6 rounded-2xl font-black text-lg flex items-center justify-between shadow-md transition-all ${
-                        barColor
-                      } ${
-                        isRevealed && !isCorrect ? "opacity-30 grayscale" : ""
-                      } ${
-                        isRevealed && isCorrect ? "ring-4 ring-emerald-400 scale-[1.02]" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm">
-                          {isTF ? (ans.text.toLowerCase().includes("true") ? "◆" : "▲") : letter}
-                        </span>
-                        <span>{ans.text}</span>
-                      </div>
-                      {isRevealed && isCorrect && (
-                        <span className="text-xs bg-white text-emerald-700 px-3 py-1 rounded-full font-extrabold uppercase shadow">
+              const style = isTF
+                ? (isTrue ? choiceShapes[1] : choiceShapes[0])
+                : choiceShapes[idx % choiceShapes.length];
+
+              const isCorrect = ans.isCorrect;
+              const isRevealed = gameState === "RESULTS";
+              const votes = answerStats.counts?.[ans?.id] || 0;
+              const pct = answerStats.percentages?.[ans?.id] !== undefined ? answerStats.percentages[ans.id] : 0;
+
+              return (
+                <div
+                  key={ans.id || idx}
+                  className={`w-full h-full min-h-[58px] p-3 sm:p-4 rounded-2xl font-black text-base sm:text-xl flex items-center justify-between shadow-2xl transition-all duration-300 ${
+                    style.bg
+                  } ${
+                    isRevealed && !isCorrect ? "opacity-35 grayscale" : ""
+                  } ${
+                    isRevealed && isCorrect ? "ring-4 ring-white shadow-emerald-500/50 scale-[1.01]" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-xl sm:text-2xl opacity-90 shrink-0">
+                      {style.icon}
+                    </span>
+                    <span className="text-left font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1">
+                      {ans.text}
+                    </span>
+                  </div>
+
+                  {isRevealed && (
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      <span className="text-xs sm:text-sm font-mono bg-black/30 px-2.5 py-1 rounded-lg">
+                        {votes} ({pct}%)
+                      </span>
+                      {isCorrect && (
+                        <span className="text-xs bg-white text-emerald-700 px-3 py-1 rounded-full font-black uppercase shadow">
                           ✓ Correct
                         </span>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right 4 cols: Answer Statistics Card */}
-            <div className="lg:col-span-4 bg-slate-50 p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between h-full">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-black text-slate-900">Answer Statistics</h3>
-                  <span className="text-xs font-bold text-slate-500">
-                    {answerStats.totalAnswers || 0} Total Responses
-                  </span>
+                  )}
                 </div>
-
-                {/* Percentage Distribution Bars from Real Votes */}
-                <div className="space-y-3">
-                  {currentQuestion.answers?.map((ans: any, idx: number) => {
-                    const letter = ["A", "B", "C", "D"][idx];
-                    const isTF = currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2;
-                    const votes = answerStats.counts?.[ans?.id] || 0;
-                    const pct = answerStats.percentages?.[ans?.id] !== undefined ? answerStats.percentages[ans.id] : 0;
-                    const color = isTF
-                      ? (ans.text.toLowerCase().includes("true") ? "bg-[#3B82F6]" : "bg-[#EF4444]")
-                      : ["bg-[#EF4444]", "bg-[#3B82F6]", "bg-[#F59E0B]", "bg-[#10B981]"][idx % 4];
-
-                    return (
-                      <div key={ans.id || idx} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                          <span className="flex items-center gap-1.5">
-                            <span className={`w-3 h-3 rounded-full ${color}`} />
-                            {isTF ? ans.text : `Option ${letter}`}
-                          </span>
-                          <span>
-                            {votes} {votes === 1 ? "vote" : "votes"} ({pct}%)
-                          </span>
-                        </div>
-                        <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${color} rounded-full transition-all duration-500`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Action Buttons: Show Leaderboard or Skip to Next Question */}
-              <div className="pt-4 border-t border-slate-200 space-y-2">
-                {gameState === "QUESTION" && (
-                  <button
-                    onClick={handleSkipQuestion}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-base rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
-                  >
-                    Reveal / Skip Question <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-
-                {gameState === "RESULTS" && (
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleShowLeaderboard}
-                      className="w-full py-3 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-black text-base rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
-                    >
-                      Show Leaderboard <ArrowRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleNextQuestion}
-                      className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm rounded-xl transition flex items-center justify-center gap-2"
-                    >
-                      Skip Leaderboard & Go to Next Question ⏭️
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* 4. LEADERBOARD VIEW FROM MOCKUP */}
+      {/* ========================================================================= */}
+      {/* 4. FULL-BLEED LEADERBOARD VIEW (NO CARDS) */}
+      {/* ========================================================================= */}
       {gameState === "LEADERBOARD" && (
-        <div className="w-full max-w-4xl bg-[#4F46E5] rounded-3xl overflow-hidden shadow-2xl flex flex-col text-white">
-          {/* Header from Mockup: Leaderboard | PIN: 487521 🏆 */}
-          <div className="bg-[#4338CA] px-8 py-4 flex items-center justify-between border-b border-indigo-400/30">
-            <h2 className="text-xl font-black tracking-wide">Leaderboard</h2>
-            <div className="flex items-center gap-2 font-mono text-base font-black bg-indigo-900/50 px-3 py-1 rounded-lg">
-              PIN: {pin} 🏆
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-6">
+          {/* Top Bar Header */}
+          <div className="flex items-center justify-between border-b border-purple-400/20 pb-4">
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-purple-300 block">Question {questionIndex + 1} Complete</span>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Arena Leaderboard 🏆</h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-sm font-black bg-indigo-900/60 px-3.5 py-2 rounded-xl border border-indigo-400/30">
+                PIN: {pin}
+              </span>
+              <button
+                onClick={handleNextStep}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm sm:text-base rounded-xl shadow-xl transition flex items-center gap-2 active:scale-95"
+              >
+                Next Question <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
-          {/* Ranked List from Mockup */}
-          <div className="p-8 space-y-3 max-w-2xl mx-auto w-full">
+          {/* Ranked List Grid */}
+          <div className="w-full max-w-4xl mx-auto flex-1 flex flex-col justify-center space-y-3 min-h-0 overflow-y-auto p-2">
             {leaderboard.slice(0, 6).map((p, idx) => {
               const medalIcons = ["🥇", "🥈", "🥉"];
               return (
                 <div
                   key={p.id || idx}
-                  className="p-4 px-6 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-between shadow-md"
+                  className={`p-4 px-6 rounded-2xl border flex items-center justify-between shadow-xl transition ${
+                    idx === 0
+                      ? "bg-gradient-to-r from-amber-500/30 to-amber-600/20 border-amber-400/50 ring-2 ring-amber-400/30"
+                      : "bg-white/10 backdrop-blur-md border-white/15"
+                  }`}
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-xl font-black w-6 text-center">
-                      {idx < 3 ? medalIcons[idx] : idx + 1}
+                    <span className="text-2xl font-black w-8 text-center">
+                      {idx < 3 ? medalIcons[idx] : `#${idx + 1}`}
                     </span>
-                    <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-base">
+                    <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-inner">
                       {p.avatar || "🦊"}
                     </span>
-                    <span className="font-black text-lg text-white">{p.nickname}</span>
+                    <span className="font-black text-xl text-white">{p.nickname}</span>
                   </div>
-                  <span className="font-mono font-black text-2xl text-amber-300">
-                    {p.score?.toLocaleString()}
+                  <span className="font-mono font-black text-2xl sm:text-3xl text-amber-300">
+                    {p.score?.toLocaleString()} pts
                   </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Bottom Next Button */}
-          <div className="p-6 bg-[#4338CA]/60 flex justify-center">
-            <button
-              onClick={handleNextStep}
-              className="px-10 py-3.5 bg-white text-indigo-700 font-black text-lg rounded-2xl shadow-xl hover:bg-indigo-50 transition flex items-center gap-2"
-            >
-              Next Question <ArrowRight className="w-5 h-5" />
-            </button>
+          <div className="text-center text-xs text-purple-300/80 pt-2 border-t border-purple-400/20">
+            Live arena scoring based on accuracy and response speed
           </div>
         </div>
       )}
 
-      {/* 5. FINAL RESULTS PODIUM VIEW FROM MOCKUP */}
+      {/* ========================================================================= */}
+      {/* 5. FULL-BLEED FINAL PODIUM VIEW (NO CARDS) */}
+      {/* ========================================================================= */}
       {gameState === "PODIUM" && (
-        <div className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col text-slate-900">
-          {/* Header: Final Results */}
-          <div className="bg-[#4F46E5] px-8 py-4 text-white text-center">
-            <h1 className="text-2xl font-black tracking-wide">Final Results 🏆</h1>
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in text-center space-y-6">
+          {/* Header */}
+          <div className="border-b border-purple-400/20 pb-4">
+            <span className="text-xs font-black uppercase tracking-widest text-amber-300">Game Over</span>
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">Final Champions Podium 🏆</h1>
           </div>
 
-          <div className="p-8 md:p-12 flex flex-col items-center space-y-12">
-            {/* 3D Olympic Podium from Mockup */}
-            <div className="flex items-end justify-center gap-4 w-full max-w-xl">
-              {/* 2nd Place: SmartCookie (Blue Pillar) */}
-              <div className="flex flex-col items-center flex-1">
-                <div className="mb-2 text-center">
-                  <span className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-3xl shadow-md mx-auto">
-                    {leaderboard[1]?.avatar || "🥈"}
-                  </span>
-                  <p className="font-black text-sm text-slate-900 mt-1">{leaderboard[1]?.nickname || "SmartCookie"}</p>
-                  <p className="font-mono text-xs font-bold text-slate-500">{leaderboard[1]?.score?.toLocaleString() || "9,850"} pts</p>
-                </div>
-                <div className="w-full h-40 bg-[#3B82F6] rounded-t-2xl flex items-center justify-center text-white text-4xl font-black shadow-lg">
-                  2
-                </div>
+          {/* 3D Olympic Style Pillars */}
+          <div className="flex items-end justify-center gap-4 sm:gap-6 w-full max-w-3xl mx-auto my-auto min-h-[300px]">
+            {/* 2nd Place */}
+            <div className="flex flex-col items-center flex-1">
+              <div className="mb-3 text-center">
+                <span className="w-16 h-16 rounded-2xl bg-blue-500/30 border-2 border-blue-400 flex items-center justify-center text-4xl shadow-xl mx-auto">
+                  {leaderboard[1]?.avatar || "🥈"}
+                </span>
+                <p className="font-black text-base text-white mt-1.5">{leaderboard[1]?.nickname || "SmartCookie"}</p>
+                <p className="font-mono text-sm font-bold text-amber-300">{leaderboard[1]?.score?.toLocaleString() || "9,850"} pts</p>
               </div>
-
-              {/* 1st Place: LionKing_23 with Crown 👑 (Purple Pillar) */}
-              <div className="flex flex-col items-center flex-1 relative">
-                <span className="absolute -top-6 text-3xl animate-bounce">👑</span>
-                <div className="mb-2 text-center">
-                  <span className="w-18 h-18 rounded-full bg-indigo-100 border-2 border-indigo-400 flex items-center justify-center text-4xl shadow-lg mx-auto">
-                    {leaderboard[0]?.avatar || "👑"}
-                  </span>
-                  <p className="font-black text-base text-slate-900 mt-1">{leaderboard[0]?.nickname || "LionKing_23"}</p>
-                  <p className="font-mono text-sm font-black text-indigo-600">{leaderboard[0]?.score?.toLocaleString() || "12,450"} pts</p>
-                </div>
-                <div className="w-full h-56 bg-[#4F46E5] rounded-t-2xl flex items-center justify-center text-white text-5xl font-black shadow-xl">
-                  1
-                </div>
-              </div>
-
-              {/* 3rd Place: QuizMaster (Orange Pillar) */}
-              <div className="flex flex-col items-center flex-1">
-                <div className="mb-2 text-center">
-                  <span className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-3xl shadow-md mx-auto">
-                    {leaderboard[2]?.avatar || "🥉"}
-                  </span>
-                  <p className="font-black text-sm text-slate-900 mt-1">{leaderboard[2]?.nickname || "QuizMaster"}</p>
-                  <p className="font-mono text-xs font-bold text-slate-500">{leaderboard[2]?.score?.toLocaleString() || "8,600"} pts</p>
-                </div>
-                <div className="w-full h-32 bg-[#F59E0B] rounded-t-2xl flex items-center justify-center text-white text-4xl font-black shadow-lg">
-                  3
-                </div>
+              <div className="w-full h-44 bg-gradient-to-b from-blue-500 to-blue-700 rounded-t-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl border-t-2 border-blue-300/40">
+                2
               </div>
             </div>
 
-            {/* Standings 4-6 from Mockup */}
-            <div className="w-full max-w-lg space-y-2 border-t border-slate-200 pt-6">
-              {leaderboard.slice(3, 6).map((p, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl font-bold text-sm">
-                  <span className="text-slate-700">{idx + 4}. {p.nickname}</span>
-                  <span className="font-mono text-slate-500">{p.score?.toLocaleString()} pts</span>
-                </div>
-              ))}
+            {/* 1st Place Champion */}
+            <div className="flex flex-col items-center flex-1 relative -mt-10">
+              <span className="text-4xl animate-bounce mb-1">👑</span>
+              <div className="mb-3 text-center">
+                <span className="w-20 h-20 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-5xl shadow-2xl mx-auto ring-4 ring-amber-400/20">
+                  {leaderboard[0]?.avatar || "👑"}
+                </span>
+                <p className="font-black text-lg text-white mt-1.5">{leaderboard[0]?.nickname || "Champion"}</p>
+                <p className="font-mono text-base font-black text-amber-300">{leaderboard[0]?.score?.toLocaleString() || "12,450"} pts</p>
+              </div>
+              <div className="w-full h-64 bg-gradient-to-b from-indigo-500 to-indigo-700 rounded-t-3xl flex items-center justify-center text-white text-6xl font-black shadow-2xl border-t-2 border-indigo-300/50">
+                1
+              </div>
             </div>
 
+            {/* 3rd Place */}
+            <div className="flex flex-col items-center flex-1">
+              <div className="mb-3 text-center">
+                <span className="w-16 h-16 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-4xl shadow-xl mx-auto">
+                  {leaderboard[2]?.avatar || "🥉"}
+                </span>
+                <p className="font-black text-base text-white mt-1.5">{leaderboard[2]?.nickname || "QuizMaster"}</p>
+                <p className="font-mono text-sm font-bold text-amber-300">{leaderboard[2]?.score?.toLocaleString() || "8,600"} pts</p>
+              </div>
+              <div className="w-full h-36 bg-gradient-to-b from-amber-500 to-amber-700 rounded-t-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl border-t-2 border-amber-300/40">
+                3
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Back Button */}
+          <div className="pt-4 border-t border-purple-400/20">
             <button
               onClick={() => router.push("/dashboard")}
-              className="px-8 py-3 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold rounded-xl shadow-md transition"
+              className="px-8 py-3.5 bg-white text-purple-950 font-black text-base rounded-2xl shadow-2xl hover:bg-purple-50 transition active:scale-95"
             >
               Back to Dashboard
             </button>

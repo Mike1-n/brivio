@@ -303,7 +303,7 @@ export default function PlayerGameControllerPage() {
   const progressPercent = totalTimeLimit > 0 ? Math.min(100, Math.max(0, (timeRemaining / totalTimeLimit) * 100)) : 0;
 
   return (
-    <div className="min-h-screen flex flex-col justify-between p-4 font-sans text-white select-none max-w-lg mx-auto w-full">
+    <div className="h-[100dvh] max-h-[100dvh] bg-gradient-to-b from-[#3b0764] via-[#4c1d95] to-[#2e1065] flex flex-col justify-between p-2.5 sm:p-4 font-sans text-white select-none max-w-md sm:max-w-lg mx-auto w-full overflow-hidden">
       {/* JOIN ERROR MODAL */}
       {joinError && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
@@ -325,28 +325,28 @@ export default function PlayerGameControllerPage() {
 
       {/* 1. YOU'RE IN! (LOBBY WAITING SCREEN) */}
       {gameState === "LOBBY" && !joinError && (
-        <div className="flex-1 flex flex-col items-center justify-between py-10 w-full bg-emerald-600 rounded-3xl p-6 text-center shadow-2xl space-y-6">
-          <div className="space-y-3 pt-4">
+        <div className="h-full flex-1 flex flex-col items-center justify-between py-6 sm:py-8 w-full bg-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-center shadow-2xl overflow-hidden">
+          <div className="space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-800/60 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
               Connected to Game
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-white">You&apos;re in!</h1>
-            <p className="text-emerald-100 text-sm font-semibold">See your nickname on screen?</p>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">You&apos;re in!</h1>
+            <p className="text-emerald-100 text-xs sm:text-sm font-semibold">See your nickname on screen?</p>
           </div>
 
           {/* Player Badge Card */}
-          <div className="w-full bg-white text-slate-900 rounded-2xl p-5 shadow-xl space-y-3 text-center border-2 border-emerald-300/40">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center text-3xl mx-auto shadow-md">
+          <div className="w-full max-w-xs bg-white text-slate-900 rounded-2xl p-4 shadow-xl space-y-2 text-center border-2 border-emerald-300/40 my-auto">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center text-2xl mx-auto shadow-md">
               {avatar}
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900">{nickname}</h2>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">{nickname}</h2>
               <p className="text-xs font-bold text-slate-500">Game PIN: <span className="font-mono text-emerald-600 font-extrabold">{pin}</span></p>
             </div>
           </div>
 
-          <div className="w-full bg-emerald-800/40 backdrop-blur-md rounded-2xl p-3.5 flex items-center justify-between border border-emerald-400/30 text-white font-bold text-xs">
+          <div className="w-full bg-emerald-800/40 backdrop-blur-md rounded-2xl p-3 flex items-center justify-between border border-emerald-400/30 text-white font-bold text-xs">
             <span>👥 {totalPlayers} Players in Lobby</span>
             <span className="text-emerald-200">Waiting for host...</span>
           </div>
@@ -355,122 +355,142 @@ export default function PlayerGameControllerPage() {
 
       {/* 2. PREVIEW PHASE (5 SECONDS QUESTION READ-IN WITHOUT ANSWERS & NO COUNTDOWN TIMER) */}
       {gameState === "PREVIEW" && currentQuestion && (
-        <div className="flex-1 flex flex-col w-full bg-white rounded-3xl p-6 text-slate-900 shadow-2xl justify-between space-y-6 animate-fade-in">
-          {/* Top Bar: Question index & Get Ready Badge (No timer shown) */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="h-full flex-1 flex flex-col w-full bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 text-slate-900 shadow-2xl justify-between overflow-hidden animate-fade-in">
+          {/* Top Bar: Question index & Get Ready Badge */}
+          <div className="shrink-0 flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span className="text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-wider">
                 Question {questionIndex + 1} of {totalQuestions}
               </span>
             </div>
-            <div className="px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 font-black text-xs uppercase tracking-wider">
+            <div className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 font-black text-[11px] uppercase tracking-wider">
               Get Ready!
             </div>
           </div>
 
           {/* Question Media & Text */}
-          <div className="space-y-4 text-center my-auto py-2">
+          <div className="shrink-0 space-y-2 text-center my-auto py-2 px-1 max-h-[45%] overflow-hidden flex flex-col items-center justify-center">
             {currentQuestion.image && (
-              <div className="h-36 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-cover" />
+              <div className="max-h-24 sm:max-h-36 w-auto max-w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm mb-1">
+                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-24 sm:max-h-36" />
               </div>
             )}
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
+            <h2 className="text-base sm:text-xl font-black text-slate-900 leading-snug line-clamp-3">
               {currentQuestion.text}
             </h2>
           </div>
 
-          {/* Focus & Read Banner (No numeric timer shown) */}
-          <div className="flex flex-col items-center space-y-3 py-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border-2 border-amber-200 flex items-center justify-center text-2xl shadow-sm animate-pulse">
+          {/* Focus & Read Banner */}
+          <div className="shrink-0 flex flex-col items-center space-y-2 py-2 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 flex items-center justify-center text-xl shadow-sm animate-pulse">
               👀
             </div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <p className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
               Read the question carefully • Answers revealing shortly
             </p>
           </div>
 
           {/* Answer choices locked placeholder */}
-          <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl p-4 text-center text-xs font-bold text-slate-400 flex items-center justify-center gap-2">
+          <div className="shrink-0 w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-center text-xs font-bold text-slate-400 flex items-center justify-center gap-2">
             <span>🔒</span>
             <span>Answers will unlock automatically...</span>
           </div>
         </div>
       )}
 
-      {/* 3. ACTIVE QUESTION PHASE (ANSWERS REVEALED + SLEEK PROGRESS BAR TIMER) */}
+      {/* 3. ACTIVE QUESTION PHASE (MATCHING SAMPLE SCREENSHOT PERFECTLY) */}
       {gameState === "QUESTION" && currentQuestion && (
-        <div className="flex-1 flex flex-col w-full bg-white rounded-3xl p-6 text-slate-900 shadow-2xl justify-between space-y-5 animate-fade-in">
-          {/* Top Bar: Question Index and Visual Progress Bar */}
-          <div className="space-y-3 border-b border-slate-100 pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                  Question {questionIndex + 1} of {totalQuestions}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-black text-indigo-600">
-                <span>⚡</span>
-                <span className="uppercase tracking-wider font-extrabold text-[11px]">Time</span>
-              </div>
+        <div className="h-full flex-1 flex flex-col justify-between w-full max-w-md mx-auto space-y-1.5 sm:space-y-2 animate-fade-in overflow-hidden">
+          {/* Top Bar: Question Number Circle + Quiz Badge */}
+          <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
+              {questionIndex + 1}
             </div>
 
-            {/* Visual Timer Progress Bar */}
-            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                  progressPercent > 50
-                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-sm"
-                    : progressPercent > 20
-                    ? "bg-gradient-to-r from-amber-400 to-amber-500 shadow-sm"
-                    : "bg-gradient-to-r from-rose-500 to-rose-600 animate-pulse shadow-sm"
-                }`}
-                style={{ width: `${progressPercent}%` }}
-              />
+            <div className="px-3.5 py-1 bg-white text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
+              <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+                <span className="bg-[#E21B3C] rounded-[1px]" />
+                <span className="bg-[#1368CE] rounded-[1px]" />
+                <span className="bg-[#D89E00] rounded-[1px]" />
+                <span className="bg-[#26890C] rounded-[1px]" />
+              </div>
+              <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
             </div>
+
+            <div className="w-8 sm:w-9" /> {/* Spacer */}
           </div>
 
-          {/* Question Text */}
-          <div className="space-y-3 text-center">
-            {currentQuestion.image && (
-              <div className="h-32 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-cover" />
+          {/* Center Image / Media Card */}
+          <div className="w-full flex-1 max-h-[46%] min-h-[120px] bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden my-auto border border-white/30">
+            {currentQuestion.image ? (
+              <img
+                src={currentQuestion.image}
+                alt="Question illustration"
+                className="w-full h-full object-contain max-h-full rounded-xl"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                  <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
+                  <span className="bg-[#1368CE] rounded-lg shadow-sm" />
+                  <span className="bg-[#D89E00] rounded-lg shadow-sm" />
+                  <span className="bg-[#26890C] rounded-lg shadow-sm" />
+                </div>
+                <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
               </div>
             )}
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 leading-snug">
+          </div>
+
+          {/* Question Text Banner */}
+          <div className="shrink-0 w-full bg-[#E2E8F0] text-slate-900 font-extrabold text-center py-2 sm:py-2.5 px-3.5 rounded-xl shadow-md border border-white/40">
+            <h2 className="text-xs sm:text-sm md:text-base font-black leading-snug line-clamp-2 text-slate-900">
               {currentQuestion.text}
             </h2>
           </div>
 
-          {/* Choice Grid: Red, Blue, Yellow, Green cards */}
+          {/* 2x2 Answer Grid (Red, Blue, Yellow, Green with Shapes) */}
           {(currentQuestion.type === "MULTIPLE_CHOICE" || currentQuestion.type === "TRUE_FALSE" || currentQuestion.type === "POLL" || !currentQuestion.type) && (
-            <div className="grid grid-cols-1 gap-3">
+            <div className={`shrink-0 w-full grid gap-1.5 sm:gap-2 min-h-[110px] max-h-[160px] sm:max-h-[180px] ${
+              (currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2)
+                ? "grid-cols-2 grid-rows-1"
+                : "grid-cols-2 grid-rows-2"
+            }`}>
               {currentQuestion.answers?.map((ans: any, idx: number) => {
                 const isTF = currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2;
-                const letter = ["A", "B", "C", "D"][idx];
-                const isTrue = ans.text.toLowerCase().includes("true");
+                const isTrue = (ans.text || "").toLowerCase().includes("true");
 
-                // Style mapping: Choice A = Red, Choice B = Blue, Choice C = Yellow/Amber, Choice D = Green
+                const choiceShapes = [
+                  { bg: "bg-[#E21B3C] hover:bg-[#c91835] border-b-4 border-[#9c1228] active:border-b-0 active:translate-y-1", icon: "▲" },
+                  { bg: "bg-[#1368CE] hover:bg-[#1059b0] border-b-4 border-[#0d4a94] active:border-b-0 active:translate-y-1", icon: "◆" },
+                  { bg: "bg-[#D89E00] hover:bg-[#bd8a00] border-b-4 border-[#9e7400] active:border-b-0 active:translate-y-1", icon: "●" },
+                  { bg: "bg-[#26890C] hover:bg-[#1f7009] border-b-4 border-[#1a5e08] active:border-b-0 active:translate-y-1", icon: "■" },
+                ];
+
                 const style = isTF
-                  ? (isTrue ? choiceStyles[1] : choiceStyles[0])
-                  : choiceStyles[idx % choiceStyles.length];
+                  ? (isTrue ? choiceShapes[1] : choiceShapes[0])
+                  : choiceShapes[idx % choiceShapes.length];
+
+                const textLen = (ans.text || "").length;
+                const fontSizeClass = textLen > 30
+                  ? "text-[10px] sm:text-xs"
+                  : textLen > 18
+                  ? "text-[11px] sm:text-sm"
+                  : textLen > 10
+                  ? "text-xs sm:text-base"
+                  : "text-sm sm:text-lg";
 
                 return (
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className={`w-full p-4 rounded-2xl text-white font-black text-base flex items-center justify-between border-b-4 transition active:scale-95 shadow-md ${style.bg}`}
+                    className={`w-full h-full min-h-[46px] sm:min-h-[52px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-white font-black flex items-center justify-start gap-2 sm:gap-3 transition shadow-lg overflow-hidden ${style.bg}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-black/20 flex items-center justify-center text-lg shadow-inner">
-                        {style.icon}
-                      </span>
-                      <span className="text-left font-extrabold">{ans.text}</span>
-                    </div>
-                    <span className="text-xs bg-white/20 px-2.5 py-1 rounded-lg uppercase tracking-wider font-bold">
-                      {letter}
+                    <span className="text-sm sm:text-base opacity-95 shrink-0">
+                      {style.icon}
+                    </span>
+                    <span className={`text-left font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1 ${fontSizeClass}`}>
+                      {ans.text}
                     </span>
                   </button>
                 );
@@ -480,12 +500,12 @@ export default function PlayerGameControllerPage() {
 
           {/* Short Answer Input */}
           {currentQuestion.type === "TYPE_ANSWER" && (
-            <div className="space-y-3">
+            <div className="shrink-0 flex flex-col justify-center space-y-2 py-1">
               <input
                 type="text"
                 placeholder="Type your answer here..."
                 id="player_text_answer_input"
-                className="w-full p-4 bg-slate-50 border-2 border-indigo-200 rounded-2xl text-slate-900 font-bold text-base focus:border-indigo-600 focus:outline-none"
+                className="w-full p-3 bg-white border-2 border-indigo-200 rounded-xl text-slate-900 font-bold text-sm focus:border-indigo-600 focus:outline-none"
               />
               <button
                 type="button"
@@ -495,35 +515,77 @@ export default function PlayerGameControllerPage() {
                     handleSelectAnswer({ id: "typed", text: input.value.trim() }, { textAnswer: input.value.trim() });
                   }
                 }}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base rounded-2xl shadow-lg transition active:scale-95"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95"
               >
                 Submit Answer 🚀
               </button>
             </div>
           )}
+
+          {/* Timer Progress Bar + Countdown Number */}
+          <div className="shrink-0 w-full flex items-center gap-2.5 py-0.5">
+            <div className="flex-1 h-2 bg-purple-950/60 rounded-full overflow-hidden p-0.5 border border-purple-400/30">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                  progressPercent > 50
+                    ? "bg-gradient-to-r from-emerald-400 to-indigo-400"
+                    : progressPercent > 20
+                    ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                    : "bg-gradient-to-r from-rose-500 to-rose-600 animate-pulse"
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-sm font-black text-white font-mono shrink-0">
+              {timeRemaining}
+            </span>
+          </div>
+
+          {/* Bottom Player Status Bar: Avatar + Nickname + Score */}
+          <div className="shrink-0 flex items-center justify-between pt-1 border-t border-purple-400/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-400 border-2 border-white flex items-center justify-center text-lg sm:text-xl shadow-md">
+                {avatar}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[130px] truncate">
+                  {nickname}
+                </span>
+                <span className="font-mono font-black text-white/90 text-xs leading-tight">
+                  {score}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200">
+                PIN: {pin}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
       {/* 4. ANSWER SUBMITTED! INSTANT FEEDBACK CARD WITH PROGRESS BAR */}
       {gameState === "SUBMITTED" && (
-        <div className="flex-1 flex flex-col justify-between w-full bg-[#312E81] rounded-3xl p-6 text-center text-white shadow-2xl space-y-6 animate-fade-in">
+        <div className="h-full flex-1 flex flex-col justify-between w-full bg-[#312E81] rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 text-center text-white shadow-2xl overflow-hidden animate-fade-in space-y-3">
           {/* Top Bar with Question Counter and Progress Bar */}
-          <div className="space-y-3 border-b border-indigo-400/20 pb-3">
+          <div className="shrink-0 space-y-2 border-b border-indigo-400/20 pb-2.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-black text-indigo-200 uppercase tracking-wider">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[11px] sm:text-xs font-black text-indigo-200 uppercase tracking-wider">
                   Question {questionIndex + 1} of {totalQuestions}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-black text-emerald-300">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black text-emerald-300">
                 <span>⚡</span>
-                <span className="uppercase tracking-wider font-extrabold text-[11px]">Round Time</span>
+                <span className="uppercase tracking-wider font-extrabold">Round Active</span>
               </div>
             </div>
 
             {/* Visual Timer Progress Bar */}
-            <div className="w-full h-2.5 bg-indigo-950/60 rounded-full overflow-hidden p-0.5 border border-indigo-500/30">
+            <div className="w-full h-2 bg-indigo-950/60 rounded-full overflow-hidden p-0.5 border border-indigo-500/30">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                   progressPercent > 50
@@ -537,25 +599,25 @@ export default function PlayerGameControllerPage() {
             </div>
           </div>
 
-          <div className="space-y-4 flex flex-col items-center py-2">
+          <div className="space-y-3 flex flex-col items-center my-auto py-1">
             {/* Immediate Correct / Incorrect Icon & Glow */}
             <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition transform scale-100 ${
+              className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-2xl transition transform scale-100 ${
                 lastResult?.isCorrect
                   ? "bg-emerald-500 text-white shadow-emerald-500/40"
                   : "bg-rose-500 text-white shadow-rose-500/40"
               }`}
             >
               {lastResult?.isCorrect ? (
-                <Check className="w-12 h-12 stroke-[3.5]" />
+                <Check className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3.5]" />
               ) : (
-                <X className="w-12 h-12 stroke-[3.5]" />
+                <X className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3.5]" />
               )}
             </div>
 
             {/* Headline & Motivational Message */}
-            <div className="space-y-1">
-              <h2 className="text-2xl sm:text-3xl font-black">
+            <div className="space-y-0.5">
+              <h2 className="text-xl sm:text-2xl font-black">
                 {lastResult?.isCorrect ? "Awesome! Spot On! 🔥" : "Failing is not the end! 💪"}
               </h2>
               <p className="text-xs font-semibold text-indigo-200">
@@ -567,22 +629,22 @@ export default function PlayerGameControllerPage() {
 
             {/* If Incorrect, show the correct answer clearly */}
             {lastResult && !lastResult.isCorrect && (
-              <div className="w-full bg-rose-950/60 border border-rose-400/40 rounded-2xl p-3 text-xs text-rose-200 font-bold">
+              <div className="w-full bg-rose-950/60 border border-rose-400/40 rounded-xl p-2.5 text-xs text-rose-200 font-bold">
                 Correct answer was: <span className="underline font-black text-white">{lastResult.correctAnswerText}</span>
               </div>
             )}
 
             {/* Score pill */}
-            <div className="bg-indigo-900/80 border border-indigo-400/30 rounded-2xl p-3.5 w-full flex items-center justify-between">
+            <div className="bg-indigo-900/80 border border-indigo-400/30 rounded-xl p-3 w-full flex items-center justify-between">
               <div className="text-left">
                 <span className="text-[10px] font-bold text-indigo-300 uppercase block">Points Earned</span>
-                <span className="text-xl font-black text-emerald-400">
+                <span className="text-lg sm:text-xl font-black text-emerald-400">
                   {lastResult?.isCorrect ? `+${lastResult.pointsAwarded}` : "0"} pts
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-bold text-indigo-300 uppercase block">Your Pick</span>
-                <span className="text-sm font-bold text-white max-w-[140px] truncate block">
+                <span className="text-xs sm:text-sm font-bold text-white max-w-[130px] truncate block">
                   {selectedAnswerText}
                 </span>
               </div>
@@ -590,7 +652,7 @@ export default function PlayerGameControllerPage() {
           </div>
 
           {/* Bottom live status banner */}
-          <div className="w-full bg-indigo-950/60 border border-indigo-500/30 rounded-2xl p-3 text-xs font-semibold text-indigo-200 flex items-center justify-center gap-2">
+          <div className="shrink-0 w-full bg-indigo-950/60 border border-indigo-500/30 rounded-xl p-2.5 text-xs font-semibold text-indigo-200 flex items-center justify-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             <span>Round timer active • Waiting for next phase</span>
           </div>
@@ -599,24 +661,24 @@ export default function PlayerGameControllerPage() {
 
       {/* 5. RESULT FEEDBACK SCREEN */}
       {gameState === "RESULTS" && lastResult && (
-        <div className="flex-1 flex flex-col items-center justify-between w-full bg-white rounded-3xl p-6 text-center text-slate-900 shadow-2xl py-8 space-y-6">
-          <div className="space-y-4 w-full flex flex-col items-center">
+        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 text-center text-slate-900 shadow-2xl overflow-hidden space-y-3">
+          <div className="space-y-3 w-full flex flex-col items-center my-auto">
             {/* Status Icon */}
             <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl ${
+              className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-xl ${
                 lastResult.isCorrect ? "bg-emerald-500 text-white shadow-emerald-500/30" : "bg-rose-500 text-white shadow-rose-500/30"
               }`}
             >
               {lastResult.isCorrect ? (
-                <Check className="w-12 h-12 stroke-[3]" />
+                <Check className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3]" />
               ) : (
-                <X className="w-12 h-12 stroke-[3]" />
+                <X className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3]" />
               )}
             </div>
 
             {/* Motivational Heading & Subtext */}
-            <div className="space-y-1">
-              <h2 className="text-2xl sm:text-3xl font-black">
+            <div className="space-y-0.5">
+              <h2 className="text-xl sm:text-2xl font-black">
                 {lastResult.isCorrect ? "Awesome! Spot On! 🔥" : "Failing is not the end! 💪"}
               </h2>
               <p className="text-xs font-semibold text-slate-500">
@@ -628,40 +690,40 @@ export default function PlayerGameControllerPage() {
 
             {/* Correct Answer reveal if incorrect */}
             {!lastResult.isCorrect && (
-              <div className="w-full bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-900 font-bold">
+              <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-900 font-bold">
                 Correct answer was: <span className="underline font-black">{lastResult.correctAnswerText}</span>
               </div>
             )}
 
             {/* Score points awarded banner */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 w-full flex items-center justify-between">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 w-full flex items-center justify-between">
               <div className="text-left">
-                <span className="text-xs font-bold text-slate-400 block uppercase">Points Earned</span>
-                <span className="text-2xl font-black text-indigo-600">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Points Earned</span>
+                <span className="text-xl font-black text-indigo-600">
                   {lastResult.isCorrect ? `+${lastResult.pointsAwarded}` : "0"} pts
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-xs font-bold text-slate-400 block uppercase">Total Score</span>
-                <span className="text-2xl font-black text-slate-900 font-mono">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Total Score</span>
+                <span className="text-xl font-black text-slate-900 font-mono">
                   {score.toLocaleString()}
                 </span>
               </div>
             </div>
 
             {/* Personalized Standing Breakdown Card */}
-            <div className="w-full bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-4 text-center space-y-1">
+            <div className="w-full bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-3 text-center space-y-1">
               {rank === 1 ? (
-                <p className="text-sm font-black text-indigo-900">
+                <p className="text-xs sm:text-sm font-black text-indigo-900">
                   👑 1st Place! You are leading the arena!
                 </p>
               ) : rank <= 3 ? (
-                <p className="text-sm font-black text-indigo-900">
+                <p className="text-xs sm:text-sm font-black text-indigo-900">
                   🏆 You are on the podium! Position #{rank} of {totalPlayers}!
                 </p>
               ) : lastResult.aheadPlayerName ? (
-                <p className="text-xs font-bold text-indigo-900">
-                  📍 Position <span className="font-black text-indigo-700">#{rank}</span> • Only <span className="font-black text-amber-600">{lastResult.pointsBehind || 0} pts</span> behind <span className="font-black">{lastResult.aheadPlayerName}</span>! You can catch up! 🚀
+                <p className="text-[11px] sm:text-xs font-bold text-indigo-900">
+                  📍 Position <span className="font-black text-indigo-700">#{rank}</span> • Only <span className="font-black text-amber-600">{lastResult.pointsBehind || 0} pts</span> behind <span className="font-black">{lastResult.aheadPlayerName}</span>! 🚀
                 </p>
               ) : (
                 <p className="text-xs font-bold text-indigo-900">
@@ -672,7 +734,7 @@ export default function PlayerGameControllerPage() {
           </div>
 
           {/* Waiting for host indicator */}
-          <div className="w-full bg-indigo-900 text-white rounded-2xl p-3.5 text-xs font-bold flex items-center justify-center gap-2 shadow-inner animate-pulse">
+          <div className="shrink-0 w-full bg-indigo-900 text-white rounded-xl p-3 text-xs font-bold flex items-center justify-center gap-2 shadow-inner animate-pulse">
             <span>⏳</span>
             <span>Waiting for host to go to the next question...</span>
           </div>
@@ -681,21 +743,21 @@ export default function PlayerGameControllerPage() {
 
       {/* 6. PLAYER LEADERBOARD SCREEN */}
       {gameState === "LEADERBOARD" && (
-        <div className="flex-1 flex flex-col justify-between w-full bg-[#4F46E5] rounded-3xl p-6 text-white shadow-2xl space-y-6">
-          <div className="space-y-4">
-            <div className="text-center border-b border-indigo-400/30 pb-3">
-              <span className="text-xs font-black text-indigo-200 uppercase tracking-wider">
+        <div className="h-full flex-1 flex flex-col justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 text-white shadow-2xl overflow-hidden space-y-3">
+          <div className="space-y-3">
+            <div className="text-center border-b border-indigo-400/30 pb-2">
+              <span className="text-[11px] sm:text-xs font-black text-indigo-200 uppercase tracking-wider">
                 Question {questionIndex + 1} of {totalQuestions}
               </span>
-              <h2 className="text-xl font-black mt-1">Arena Leaderboard 🏆</h2>
+              <h2 className="text-lg sm:text-xl font-black mt-0.5">Arena Leaderboard 🏆</h2>
             </div>
 
             {/* Standings list with current player highlighted */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {leaderboard.slice(0, 5).map((p, idx) => (
                 <div
                   key={idx}
-                  className={`p-3 px-4 rounded-xl flex items-center justify-between text-xs font-bold ${
+                  className={`p-2.5 px-3 rounded-xl flex items-center justify-between text-xs font-bold ${
                     p.nickname === nickname
                       ? "bg-white text-indigo-900 ring-2 ring-amber-300 font-black shadow-md"
                       : "bg-indigo-900/40 text-white"
@@ -712,49 +774,49 @@ export default function PlayerGameControllerPage() {
           </div>
 
           {/* Bottom Rank Banner */}
-          <div className="bg-[#4338CA] border border-indigo-400/40 rounded-2xl p-4 text-center space-y-1">
-            <span className="text-xs font-bold text-indigo-200 uppercase block">Your Current Rank</span>
-            <span className="text-2xl font-black text-amber-300 font-mono">Position #{rank} of {totalPlayers}</span>
-            <p className="text-xs text-indigo-200 pt-1">Get ready for the next round! 🚀</p>
+          <div className="shrink-0 bg-[#4338CA] border border-indigo-400/40 rounded-xl p-3 text-center space-y-0.5">
+            <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Current Rank</span>
+            <span className="text-xl font-black text-amber-300 font-mono">Position #{rank} of {totalPlayers}</span>
+            <p className="text-[11px] text-indigo-200">Get ready for the next round! 🚀</p>
           </div>
         </div>
       )}
 
       {/* 7. PLAYER FINAL RESULTS (SINGLE UNIFIED CARD) */}
       {gameState === "PODIUM" && (
-        <div className="flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-3xl p-6 sm:p-8 text-white shadow-2xl text-center space-y-6 animate-fade-in">
+        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-2xl text-center overflow-hidden animate-fade-in space-y-3">
           {/* Header */}
-          <div className="space-y-1">
-            <span className="text-xs font-black uppercase tracking-widest text-indigo-200">
+          <div className="shrink-0 space-y-0.5">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-indigo-200">
               Game Finished
             </span>
-            <h1 className="text-3xl font-black tracking-tight">Final Results 🏆</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Final Results 🏆</h1>
           </div>
 
           {/* Single Unified Champion / Rank & Score Section */}
-          <div className="flex flex-col items-center space-y-4 my-auto py-2">
-            <div className="w-24 h-24 rounded-3xl bg-white/15 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-5xl shadow-2xl">
+          <div className="flex flex-col items-center space-y-3 my-auto py-1">
+            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white/15 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-4xl shadow-2xl">
               {rank === 1 ? "👑" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "🎉"}
             </div>
 
-            <div className="space-y-1">
-              <h2 className="text-2xl sm:text-3xl font-black">
+            <div className="space-y-0.5">
+              <h2 className="text-xl sm:text-2xl font-black">
                 {rank === 1
                   ? "Champion! 1st Place! 🔥"
                   : rank <= 3
                   ? `Podium Finish! Rank #${rank} 🏆`
                   : `Rank #${rank} of ${totalPlayers} Players`}
               </h2>
-              <p className="text-sm font-semibold text-indigo-200">
+              <p className="text-xs sm:text-sm font-semibold text-indigo-200">
                 {nickname} • Great effort in the arena!
               </p>
             </div>
 
-            <div className="px-6 py-3 rounded-2xl bg-indigo-900/60 border border-indigo-400/30 shadow-inner flex items-center gap-3">
+            <div className="px-5 py-2.5 rounded-xl bg-indigo-900/60 border border-indigo-400/30 shadow-inner flex items-center gap-2.5">
               <span className="text-xs font-black uppercase tracking-wider text-indigo-200">
                 Final Score:
               </span>
-              <span className="font-mono text-2xl font-black text-amber-300">
+              <span className="font-mono text-xl font-black text-amber-300">
                 {score.toLocaleString()} pts
               </span>
             </div>
@@ -763,7 +825,7 @@ export default function PlayerGameControllerPage() {
           {/* Play Again Button */}
           <button
             onClick={() => router.push("/play")}
-            className="w-full py-4 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-95 font-black text-base rounded-2xl shadow-xl transition"
+            className="shrink-0 w-full py-3.5 sm:py-4 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-95 font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-xl transition"
           >
             Play Another Game 🎮
           </button>

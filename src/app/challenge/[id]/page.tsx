@@ -287,7 +287,7 @@ export default function ChallengeGamePage() {
   const currentQ = challenge?.quiz?.questions?.[currentQIndex];
 
   return (
-    <div className="min-h-screen bg-[#0B0E23] flex flex-col justify-center items-center p-4 font-sans text-white">
+    <div className="h-[100dvh] max-h-[100dvh] bg-[#0B0E23] flex flex-col justify-center items-center p-2.5 sm:p-4 font-sans text-white overflow-hidden">
       {/* 0. EXPIRED / CLOSED CHALLENGE VIEW (EXPIRES AT EXACT SECOND) */}
       {isChallengeExpired && stage !== "FINISHED" && (
         <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-6 text-center animate-fade-in">
@@ -462,37 +462,37 @@ export default function ChallengeGamePage() {
 
       {/* 2. PLAYING QUESTION SCREEN */}
       {stage === "PLAYING" && currentQ && (
-        <div className="w-full max-w-md bg-white rounded-3xl p-6 text-slate-900 shadow-2xl flex flex-col justify-between space-y-6">
+        <div className="h-full flex-1 flex flex-col w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-slate-900 shadow-2xl overflow-hidden justify-between animate-fade-in">
           {/* Top Bar: Question N of Total | Timer */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
+          <div className="shrink-0 flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-wider">
               Question {currentQIndex + 1} of {challenge.quiz.questions.length}
             </span>
-            <div className="w-10 h-10 rounded-full border-2 border-indigo-600 flex items-center justify-center font-black text-indigo-700 text-sm bg-indigo-50 shadow-inner">
-              {timeRemaining}
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-indigo-600 flex items-center justify-center font-black text-indigo-700 text-xs sm:text-sm bg-indigo-50 shadow-inner">
+              {timeRemaining}s
             </div>
           </div>
 
           {/* Question Prompt + Optional Media */}
-          <div className="space-y-4 text-center">
+          <div className="shrink-0 flex flex-col items-center justify-center text-center my-auto py-1 sm:py-2 px-1 max-h-[30%] overflow-hidden">
             {currentQ.image && (
-              <div className="h-36 w-full rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                <img src={currentQ.image} alt="Question" className="w-full h-full object-cover" />
+              <div className="max-h-20 sm:max-h-28 w-auto max-w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm mb-1">
+                <img src={currentQ.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-28" />
               </div>
             )}
-            <h2 className="text-lg font-black text-slate-900 leading-snug">
+            <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-900 leading-snug line-clamp-3">
               {currentQ.text}
             </h2>
           </div>
 
           {/* 1. TYPE / SHORT ANSWER */}
           {currentQ.type === "TYPE_ANSWER" && (
-            <div className="space-y-3">
+            <div className="flex-1 flex flex-col justify-center space-y-2.5 sm:space-y-3 min-h-0">
               <input
                 type="text"
                 placeholder="Type your answer here..."
                 id="challenge_text_answer_input"
-                className="w-full p-4 bg-slate-50 border-2 border-indigo-200 rounded-2xl text-slate-900 font-bold text-base focus:border-indigo-600 focus:outline-none"
+                className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-indigo-200 rounded-xl sm:rounded-2xl text-slate-900 font-bold text-sm sm:text-base focus:border-indigo-600 focus:outline-none"
               />
               <button
                 type="button"
@@ -502,7 +502,7 @@ export default function ChallengeGamePage() {
                     handleSelectAnswer({ id: "typed", text: input.value.trim() }, { textAnswer: input.value.trim() });
                   }
                 }}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base rounded-2xl shadow-lg transition active:scale-95"
+                className="w-full py-3.5 sm:py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-lg transition active:scale-95"
               >
                 Submit Answer 🚀
               </button>
@@ -511,8 +511,8 @@ export default function ChallengeGamePage() {
 
           {/* 2. MULTI-SELECT (CHECKBOX) */}
           {currentQ.type === "MULTI_SELECT" && (
-            <div className="space-y-3">
-              <div className="space-y-2">
+            <div className="flex-1 flex flex-col justify-between space-y-2 min-h-0">
+              <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
                 {currentQ.answers?.map((ans: any, idx: number) => {
                   const letter = ["A", "B", "C", "D"][idx];
                   const isChecked = selectedAnswerIds.includes(ans.id);
@@ -521,20 +521,20 @@ export default function ChallengeGamePage() {
                       key={ans.id || idx}
                       type="button"
                       onClick={() => toggleMultiSelectId(ans.id)}
-                      className={`w-full p-3.5 px-4 rounded-xl border-2 font-bold text-sm flex items-center justify-between transition ${
+                      className={`w-full h-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
                         isChecked
                           ? "bg-indigo-50 border-indigo-600 text-indigo-950 shadow-sm"
                           : "bg-slate-50 border-slate-200 text-slate-700"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-black text-slate-400">{letter}</span>
-                        <span>{ans.text}</span>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className="text-[11px] font-black text-slate-400 shrink-0">{letter}</span>
+                        <span className="truncate text-left">{ans.text}</span>
                       </div>
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ml-1 ${
                         isChecked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"
                       }`}>
-                        {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
                     </button>
                   );
@@ -548,7 +548,7 @@ export default function ChallengeGamePage() {
                   }
                 }}
                 disabled={selectedAnswerIds.length === 0}
-                className="w-full py-3.5 bg-indigo-600 disabled:opacity-40 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition"
+                className="shrink-0 w-full py-2.5 sm:py-3 bg-indigo-600 disabled:opacity-40 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
               >
                 Submit Selected ({selectedAnswerIds.length})
               </button>
@@ -557,9 +557,9 @@ export default function ChallengeGamePage() {
 
           {/* 3. ORDERING / PUZZLE */}
           {currentQ.type === "ORDERING" && (
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-slate-500 text-center">Tap items in correct sequence (1st to 4th)</p>
-              <div className="space-y-2">
+            <div className="flex-1 flex flex-col justify-between space-y-2 min-h-0">
+              <p className="text-[10px] sm:text-xs font-bold text-slate-500 text-center shrink-0">Tap items in sequence (1st to 4th)</p>
+              <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
                 {currentQ.answers?.map((ans: any, idx: number) => {
                   const orderIndex = orderingSequence.indexOf(ans.id);
                   const isOrdered = orderIndex !== -1;
@@ -568,14 +568,14 @@ export default function ChallengeGamePage() {
                       key={ans.id || idx}
                       type="button"
                       onClick={() => toggleOrderingId(ans.id)}
-                      className={`w-full p-3.5 px-4 rounded-xl border-2 font-bold text-sm flex items-center justify-between transition ${
+                      className={`w-full h-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
                         isOrdered
                           ? "bg-purple-50 border-purple-600 text-purple-950 shadow-sm"
                           : "bg-slate-50 border-slate-200 text-slate-700"
                       }`}
                     >
-                      <span>{ans.text}</span>
-                      <span className={`w-6 h-6 rounded-full font-black text-xs flex items-center justify-center ${
+                      <span className="truncate text-left flex-1">{ans.text}</span>
+                      <span className={`w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center shrink-0 ml-1 ${
                         isOrdered ? "bg-purple-600 text-white" : "bg-slate-200 text-slate-500"
                       }`}>
                         {isOrdered ? orderIndex + 1 : "+"}
@@ -592,53 +592,68 @@ export default function ChallengeGamePage() {
                   }
                 }}
                 disabled={orderingSequence.length !== currentQ.answers?.length}
-                className="w-full py-3.5 bg-purple-600 disabled:opacity-40 hover:bg-purple-700 text-white font-black text-sm rounded-xl shadow-lg transition"
+                className="shrink-0 w-full py-2.5 sm:py-3 bg-purple-600 disabled:opacity-40 hover:bg-purple-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
               >
                 Lock In Sequence ({orderingSequence.length}/{currentQ.answers?.length})
               </button>
             </div>
           )}
 
-          {/* 4. TRUE_FALSE, POLL, MULTIPLE_CHOICE */}
+          {/* 4. TRUE_FALSE, POLL, MULTIPLE_CHOICE (2x2 Grid) */}
           {(currentQ.type === "MULTIPLE_CHOICE" || currentQ.type === "TRUE_FALSE" || currentQ.type === "POLL" || !currentQ.type) && (
-            <div className="space-y-2.5">
+            <div className={`flex-1 min-h-0 w-full grid gap-2 sm:gap-2.5 pt-1 ${
+              (currentQ.type === "TRUE_FALSE" || currentQ.answers?.length === 2)
+                ? "grid-cols-2 grid-rows-1"
+                : currentQ.answers?.length === 3
+                ? "grid-cols-1 sm:grid-cols-3 grid-rows-3 sm:grid-rows-1"
+                : "grid-cols-2 grid-rows-2"
+            }`}>
               {currentQ.answers?.map((ans: any, idx: number) => {
                 const isTF = currentQ.type === "TRUE_FALSE" || currentQ.answers?.length === 2;
                 const letter = ["A", "B", "C", "D"][idx];
-                const isTrue = ans.text.toLowerCase().includes("true");
+                const isTrue = (ans.text || "").toLowerCase().includes("true");
 
-                if (isTF) {
-                  return (
-                    <button
-                      key={ans.id || idx}
-                      onClick={() => handleSelectAnswer(ans)}
-                      className={`w-full p-4 rounded-2xl border-2 text-white font-black text-lg flex items-center justify-between transition active:scale-95 shadow-md ${
-                        isTrue
-                          ? "bg-blue-600 border-blue-500 hover:bg-blue-700"
-                          : "bg-rose-600 border-rose-500 hover:bg-rose-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{isTrue ? "◆" : "▲"}</span>
-                        <span>{ans.text}</span>
-                      </div>
-                      <span className="text-xs bg-white/20 px-3 py-1 rounded-full uppercase">
-                        Select
-                      </span>
-                    </button>
-                  );
-                }
+                const choiceColors = [
+                  "bg-[#E21B3C] hover:bg-[#c91835] border-red-800",
+                  "bg-[#1368CE] hover:bg-[#1059b0] border-blue-800",
+                  "bg-[#D89E00] hover:bg-[#bd8a00] border-amber-700",
+                  "bg-[#26890C] hover:bg-[#1f7009] border-emerald-800",
+                ];
+                const choiceIcons = ["▲", "◆", "●", "■"];
+
+                const styleBg = isTF
+                  ? (isTrue ? choiceColors[1] : choiceColors[0])
+                  : choiceColors[idx % choiceColors.length];
+                const styleIcon = isTF
+                  ? (isTrue ? "◆" : "▲")
+                  : choiceIcons[idx % choiceIcons.length];
+
+                const textLen = (ans.text || "").length;
+                const fontSizeClass = textLen > 45
+                  ? "text-[10px] sm:text-xs"
+                  : textLen > 25
+                  ? "text-[11px] sm:text-sm"
+                  : textLen > 15
+                  ? "text-xs sm:text-base"
+                  : "text-sm sm:text-lg";
 
                 return (
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className="w-full p-3.5 px-4 rounded-xl border-2 border-slate-200 hover:border-indigo-600 bg-slate-50 hover:bg-indigo-50/40 text-slate-900 font-bold text-sm flex items-center justify-between transition active:scale-98 text-left"
+                    className={`w-full h-full p-2 sm:p-3 rounded-xl sm:rounded-2xl text-white font-black flex items-center justify-between border-b-2 sm:border-b-4 transition active:scale-95 shadow-md overflow-hidden ${styleBg}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-black text-slate-400">{letter}</span>
-                      <span>{ans.text}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+                      <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-black/20 shrink-0 flex items-center justify-center text-xs sm:text-sm shadow-inner">
+                        {styleIcon}
+                      </span>
+                      <span className={`text-left font-black leading-tight line-clamp-3 break-words flex-1 ${fontSizeClass}`}>
+                        {ans.text}
+                      </span>
                     </div>
+                    <span className="text-[10px] sm:text-xs bg-white/20 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md uppercase tracking-wider font-bold shrink-0 ml-1">
+                      {letter}
+                    </span>
                   </button>
                 );
               })}
