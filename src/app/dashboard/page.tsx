@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, BookOpen, PlusCircle, History, BarChart2,
   HelpCircle, User, Settings, LogOut, Bell, Plus, Play,
-  Users, Trophy, CheckCircle2, AlertCircle
+  Users, Trophy, CheckCircle2, AlertCircle, Gamepad2, FileText, Target
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -124,100 +124,100 @@ export default function TeacherDashboardPage() {
   };
 
   return (
-    <main className="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto">
-      {/* Top Header - Completely Dynamic User Name */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-2">
-              Welcome back, {user?.name || "Teacher"}! 👋
-            </h1>
-            <p className="text-sm text-slate-500 font-medium">
-              Here&apos;s what&apos;s happening with your quizzes today.
-            </p>
-          </div>
+    <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 overflow-y-auto">
+      {/* Top Header - Row layout on all screens with Create Quiz to the right */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+            Welcome back, {user?.name || "Teacher"}!
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium hidden sm:block">
+            Here&apos;s what&apos;s happening with your quizzes today.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/quizzes/create">
-              <button className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-600/20 flex items-center gap-2 transition">
-                <Plus className="w-4 h-4" />
-                Create Quiz
-              </button>
-            </Link>
-            <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-sm transition">
-              <Bell className="w-4 h-4" />
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <Link href="/dashboard/quizzes/create">
+            <button className="px-3.5 py-2 sm:px-5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-indigo-600/20 flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap active:scale-95">
+              <Plus className="w-4 h-4" />
+              Create Quiz
             </button>
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xl shadow-sm">
-              {user?.avatar || "👨‍🏫"}
-            </div>
+          </Link>
+          <button className="hidden sm:flex p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-sm transition">
+            <Bell className="w-4 h-4" />
+          </button>
+          <div className="hidden sm:flex w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 items-center justify-center font-bold text-indigo-700 text-sm shadow-sm">
+            {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-indigo-600" />}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 Stat Cards from Supabase Database (Emoji-free with Lucide icons) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{stats.totalQuizzes}</p>
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500">Quizzes</p>
           </div>
         </div>
 
-        {/* 4 Stat Cards from Supabase Database */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold">
-              📚
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{stats.totalQuizzes}</p>
-              <p className="text-xs font-semibold text-slate-500">Quizzes</p>
-            </div>
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Gamepad2 className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
-              🎮
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{stats.totalGamesHosted}</p>
-              <p className="text-xs font-semibold text-slate-500">Games Hosted</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
-              👥
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{stats.totalParticipants.toLocaleString()}</p>
-              <p className="text-xs font-semibold text-slate-500">Participants</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl font-bold">
-              🎯
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900">{stats.averageScore.toLocaleString()} pts</p>
-              <p className="text-xs font-semibold text-slate-500">Average Score</p>
-            </div>
+          <div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{stats.totalGamesHosted}</p>
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500">Games Hosted</p>
           </div>
         </div>
 
-        {/* Middle Row: Dynamic Recent Quizzes + Dynamic Recent Games */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Quizzes Card */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900">Recent Quizzes</h2>
-              <Link href="/dashboard/quizzes" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
-                View all
-              </Link>
-            </div>
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{stats.totalParticipants.toLocaleString()}</p>
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500">Participants</p>
+          </div>
+        </div>
 
-            <div className="space-y-3">
-              {quizzes.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs font-bold">
-                  No quizzes found. Click &quot;Create Quiz&quot; above to add your first quiz!
-                </div>
-              ) : (
-                quizzes.slice(0, 4).map((q) => (
-                  <div key={q.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between hover:bg-slate-100 transition">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-                        📝
-                      </div>
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <Target className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{stats.averageScore.toLocaleString()} pts</p>
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500">Average Score</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Middle Row: Dynamic Recent Quizzes + Dynamic Recent Games */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Quizzes Card */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-900">Recent Quizzes</h2>
+            <Link href="/dashboard/quizzes" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
+              View all
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {quizzes.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs font-bold">
+                No quizzes found. Click &quot;Create Quiz&quot; above to add your first quiz!
+              </div>
+            ) : (
+              quizzes.slice(0, 4).map((q) => (
+                <div key={q.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between hover:bg-slate-100 transition">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-white" />
+                    </div>
                       <div>
                         <p className="text-sm font-bold text-slate-900 truncate max-w-[200px]">{q.title}</p>
                         <p className="text-xs text-slate-500">{q._count?.questions || 10} Questions</p>

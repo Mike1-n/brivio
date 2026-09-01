@@ -533,16 +533,11 @@ export default function CreateQuizPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
       {/* Top Stepper Header Bar */}
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-4 sm:gap-6">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img src="/logo.png" alt="Brivio Logo" className="h-7 w-auto object-contain" />
-            <span className="text-xl font-black text-slate-900 tracking-tight">
-              brivio
-            </span>
-          </Link>
-          <span className="text-slate-300 hidden sm:inline">|</span>
-          <h2 className="text-sm sm:text-base font-black text-slate-900 hidden sm:block">Create Quiz</h2>
+      <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm gap-2">
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight whitespace-nowrap">
+            Create Quiz
+          </h1>
         </div>
 
         {/* 4-Step Stepper Navigation (Responsive) */}

@@ -51,13 +51,13 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand Logo & Tagline */}
-        <Link href="/" className="flex items-center gap-3">
-          <img src="/logo.png" alt="Brivio Logo" className="h-11 w-auto object-contain drop-shadow-sm" />
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <img src="/logo.png" alt="Brivio Logo" className="h-9 sm:h-11 w-auto object-contain drop-shadow-sm" />
           <div className="flex flex-col">
-            <span className="text-2xl font-black tracking-tight text-slate-900 leading-none">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
               brivio
             </span>
-            <span className="text-[10px] font-bold text-slate-400 tracking-tight mt-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 tracking-tight mt-0.5">
               Where minds compete.
             </span>
           </div>
@@ -102,37 +102,37 @@ export function Navbar() {
         </nav>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Sound Mute Toggle */}
           <button
             onClick={toggleAudio}
             title={isMuted ? "Unmute sound FX" : "Mute sound FX"}
-            className="p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 transition"
+            className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 transition shrink-0"
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-indigo-600" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />}
           </button>
 
           {user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <Link href="/dashboard">
-                <Button variant="primary" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">
-                  <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                <Button variant="primary" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg sm:rounded-xl font-bold shadow-md whitespace-nowrap text-xs sm:text-sm px-3 sm:px-4">
+                  <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
                   Dashboard
                 </Button>
               </Link>
-              <Button variant="ghost" size="sm" onClick={handleLogout} title="Logout" className="text-slate-500 hover:text-slate-900">
-                <LogOut className="w-4 h-4" />
+              <Button variant="ghost" size="sm" onClick={handleLogout} title="Logout" className="text-slate-500 hover:text-slate-900 p-1.5 sm:p-2">
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <Link href="/login">
-                <button className="px-4 py-2 text-sm font-bold text-slate-700 hover:text-indigo-600 transition">
+                <button className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-slate-700 hover:text-indigo-600 transition whitespace-nowrap">
                   Login
                 </button>
               </Link>
               <Link href="/register">
-                <button className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition active:scale-95">
+                <button className="px-3 sm:px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg sm:rounded-xl shadow-md shadow-indigo-600/20 transition active:scale-95 whitespace-nowrap">
                   Sign Up
                 </button>
               </Link>

@@ -267,7 +267,7 @@ export default function DashboardLayout({
       {/* 3. MAIN HOST CONTENT AREA + PHONE MODE TOP HEADER */}
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Mobile Top Navbar (Visible on phone screens when not in full-screen custom header) */}
+        {/* Mobile Top Navbar (Visible on phone screens) */}
         <header className="bg-[#0B0E23] text-white px-4 py-3 flex items-center justify-between md:hidden sticky top-0 z-30 shadow-md">
           <div className="flex items-center gap-3">
             <button
@@ -286,12 +286,9 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/quizzes/create"
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-lg shadow-sm flex items-center gap-1 active:scale-95"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> New Quiz
-            </Link>
+            <div className="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-400/30 text-white flex items-center justify-center text-xs font-black shadow-sm">
+              {user?.name ? user.name.charAt(0).toUpperCase() : "🎓"}
+            </div>
           </div>
         </header>
 
