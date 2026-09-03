@@ -56,8 +56,14 @@ export default function MyQuizzesPage() {
         }),
       });
       const data = await res.json();
-      if (data.shareUrl) {
-        setGeneratedLink(data.shareUrl);
+      if (data.shareUrl || data.challenge?.id) {
+        const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "";
+        const finalUrl = (origin && data.challenge?.id)
+          ? `${origin}/challenge/${data.challenge.id}`
+          : (data.shareUrl || "");
+        setGeneratedLink(finalUrl);
+      } else if (data.error) {
+        alert(data.error);
       }
     } catch (err) {
       console.error(err);
