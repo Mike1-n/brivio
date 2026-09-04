@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Play, Trophy, Check, X, Clock, Users, ArrowRight, CheckCircle2, RotateCcw, AlertCircle } from "lucide-react";
 import confetti from "canvas-confetti";
 import { soundEffects } from "@/lib/soundEffects";
+import SafeImage from "@/components/SafeImage";
 
 const AVATAR_OPTIONS = ["🦁", "🦊", "🚀", "💎", "⚡", "🐼", "🦄", "🎯", "🎓", "🌟"];
 
@@ -477,7 +478,7 @@ export default function ChallengeGamePage() {
           <div className="shrink-0 flex flex-col items-center justify-center text-center my-auto py-1 sm:py-2 px-1 max-h-[30%] overflow-hidden">
             {currentQ.image && (
               <div className="max-h-20 sm:max-h-28 w-auto max-w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm mb-1">
-                <img src={currentQ.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-28" />
+                <SafeImage src={currentQ.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-28" />
               </div>
             )}
             <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-900 leading-snug line-clamp-3">

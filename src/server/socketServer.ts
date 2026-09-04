@@ -21,6 +21,8 @@ export interface RoomPlayer {
   lastPointsEarned: number;
   lastAnswerCorrect: boolean | null;
   lastResponseTimeMs: number;
+  roundScores?: Record<number, number>;
+  isConnected?: boolean;
 }
 
 export interface GameRoom {
@@ -51,9 +53,11 @@ export interface GameRoom {
   questionStartTime: number;
   timeRemaining: number;
   timerInterval?: any;
+  hostDisconnectTimer?: any;
   botTimers: any[];
   players: Map<string, RoomPlayer>; // playerId -> RoomPlayer
   answersDistribution: Record<string, number>; // answerId -> count
+  answeredCount?: number;
 }
 
 const activeRooms = new Map<string, GameRoom>();
@@ -119,21 +123,103 @@ export function initSocketServer(httpServer: HTTPServer) {
           };
           activeRooms.set(data.pin, room);
         } else {
+          if (room.hostDisconnectTimer) {
+            clearTimeout(room.hostDisconnectTimer);
+            room.hostDisconnectTimer = null;
+          }
           room.hostSocketId = socket.id;
         }
 
         socket.join(data.pin);
+        const playerList = Array.from(room.players.values()).map((p) => ({
+          id: p.id,
+          nickname: p.nickname,
+          avatar: p.avatar,
+          score: p.score || 0,
+          lastPointsEarned: p.lastPointsEarned || 0,
+          streak: p.streak || 0,
+          rank: p.rank || 1,
+          isBot: p.isBot,
+        }));
+        const sortedLeaderboard = [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0));
+
         socket.emit("host:room_created", {
           pin: data.pin,
           quizTitle: session.quiz.title,
           questionCount: session.quiz.questions.length,
+          status: room.status,
+          currentQuestionIndex: room.currentQuestionIndex,
+          players: playerList,
+          leaderboard: sortedLeaderboard,
         });
 
+        // If host reloaded mid-game, immediately restore the host view!
+        if (room.status === "QUESTION") {
+          const currQ = room.questions[room.currentQuestionIndex];
+          if (currQ) {
+            const hostPayload = {
+              questionIndex: room.currentQuestionIndex,
+              totalQuestions: room.questions.length,
+              questionText: currQ.text,
+              questionImage: currQ.image,
+              questionType: currQ.type,
+              timeLimit: Math.max(room.timeRemaining, 1),
+              points: currQ.points,
+              isPreview: false,
+              answers: currQ.answers.map((a) => ({ id: a.id, text: a.text, color: a.color, order: a.order })),
+              question: currQ,
+            };
+            socket.emit("host:question", hostPayload);
+            socket.emit("game:question", hostPayload);
+          }
+        } else if (room.status === "RESULTS") {
+          const currQ = room.questions[room.currentQuestionIndex];
+          socket.emit("host:question_results", {
+            correctAnswerIds: currQ ? currQ.answers.filter((a) => a.isCorrect).map((a) => a.id) : [],
+            explanation: currQ ? currQ.explanation : "",
+            answersDistribution: room.answersDistribution,
+            questionText: currQ ? currQ.text : "",
+            leaderboard: sortedLeaderboard,
+          });
+        } else if (room.status === "LEADERBOARD") {
+          socket.emit("host:leaderboard", {
+            leaderboard: sortedLeaderboard,
+            isLastQuestion: room.currentQuestionIndex + 1 >= room.questions.length,
+            currentQuestionIndex: room.currentQuestionIndex,
+            totalQuestions: room.questions.length,
+          });
+        } else if (room.status === "PODIUM") {
+          const top3 = sortedLeaderboard.slice(0, 3);
+          socket.emit("game:podium", {
+            podium: top3,
+            topPlayers: sortedLeaderboard,
+            fullRanking: sortedLeaderboard,
+            totalPlayers: room.players.size,
+          });
+        }
+
         broadcastPlayerList(io, room);
-        console.log(`[GameServer] Host connected to room PIN: ${data.pin}`);
+        console.log(`[GameServer] Host connected to room PIN: ${data.pin}, status: ${room.status}`);
       } catch (err) {
         console.error("Error creating room:", err);
         socket.emit("error", { message: "Failed to create live game room" });
+      }
+    });
+
+    // Host / client requests players list immediately
+    socket.on("host:get_players", (data: { pin: string }) => {
+      if (!data?.pin) return;
+      const room = activeRooms.get(data.pin);
+      if (room) {
+        broadcastPlayerList(io, room);
+      }
+    });
+
+    socket.on("room:get_players", (data: { pin: string }) => {
+      if (!data?.pin) return;
+      const room = activeRooms.get(data.pin);
+      if (room) {
+        broadcastPlayerList(io, room);
       }
     });
 
@@ -212,13 +298,38 @@ export function initSocketServer(httpServer: HTTPServer) {
 
       if (room.status === "RESULTS") {
         showLeaderboard(io, room);
-      } else if (room.status === "LEADERBOARD") {
+      } else if (room.status === "LEADERBOARD" || room.status === "QUESTION") {
         if (room.currentQuestionIndex + 1 < room.questions.length) {
           room.currentQuestionIndex++;
           startQuestion(io, room);
         } else {
           showPodium(io, room);
         }
+      }
+    });
+
+    // Host shows leaderboard / lineup directly
+    socket.on("host:show_leaderboard", (data: { pin: string }) => {
+      const room = activeRooms.get(data.pin);
+      if (!room) return;
+      if (room.status === "QUESTION") {
+        lockAnswers(io, room);
+      }
+      showLeaderboard(io, room);
+    });
+
+    // Host moves to next question directly
+    socket.on("host:next_question", (data: { pin: string }) => {
+      const room = activeRooms.get(data.pin);
+      if (!room) return;
+      if (room.status === "QUESTION") {
+        lockAnswers(io, room);
+      }
+      if (room.currentQuestionIndex + 1 < room.questions.length) {
+        room.currentQuestionIndex++;
+        startQuestion(io, room);
+      } else {
+        showPodium(io, room);
       }
     });
 
@@ -233,8 +344,8 @@ export function initSocketServer(httpServer: HTTPServer) {
     // 2. PLAYER EVENTS
     // ----------------------------------------------------
 
-    // Player joins room with PIN + Nickname + Avatar
-    socket.on("player:join", async (data: { pin: string; nickname: string; avatar?: string }) => {
+    // Player joins room with PIN + Nickname + Avatar + optional playerId
+    socket.on("player:join", async (data: { pin: string; nickname: string; avatar?: string; playerId?: string }) => {
       let room = activeRooms.get(data.pin);
 
       if (!room) {
@@ -291,38 +402,65 @@ export function initSocketServer(httpServer: HTTPServer) {
 
       // Ensure unique nickname
       const cleanNick = (data.nickname || "Player").trim().substring(0, 18);
-      const playerId = `p_${socket.id.substring(0, 8)}`;
-      const avatar = data.avatar || "🦊";
 
-      const player: RoomPlayer = {
-        id: playerId,
-        socketId: socket.id,
-        nickname: cleanNick,
-        avatar,
-        score: 0,
-        streak: 0,
-        prevRank: 1,
-        rank: room.players.size + 1,
-        isBot: false,
-        hasAnswered: false,
-        lastPointsEarned: 0,
-        lastAnswerCorrect: null,
-        lastResponseTimeMs: 0,
-      };
+      let existingPlayer: RoomPlayer | undefined;
+      if (data.playerId && room.players.has(data.playerId)) {
+        existingPlayer = room.players.get(data.playerId);
+      } else if (cleanNick) {
+        existingPlayer = Array.from(room.players.values()).find(
+          (p) => !p.isBot && p.nickname.toLowerCase() === cleanNick.toLowerCase()
+        );
+      }
 
-      room.players.set(playerId, player);
+      let playerId: string;
+      let player: RoomPlayer;
+
+      if (existingPlayer) {
+        playerId = existingPlayer.id;
+        existingPlayer.socketId = socket.id;
+        if (data.avatar) existingPlayer.avatar = data.avatar;
+        player = existingPlayer;
+        if (!player.roundScores) player.roundScores = {};
+        player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
+      } else {
+        playerId = data.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const avatar = data.avatar || "🦊";
+        player = {
+          id: playerId,
+          socketId: socket.id,
+          nickname: cleanNick,
+          avatar,
+          score: 0,
+          roundScores: {},
+          streak: 0,
+          prevRank: 1,
+          rank: room.players.size + 1,
+          isBot: false,
+          hasAnswered: false,
+          lastPointsEarned: 0,
+          lastAnswerCorrect: null,
+          lastResponseTimeMs: 0,
+        };
+        room.players.set(playerId, player);
+      }
+
       socket.join(room.pin);
 
       socket.emit("player:joined", {
         playerId,
-        nickname: cleanNick,
-        avatar,
+        nickname: player.nickname,
+        avatar: player.avatar,
+        score: player.score || 0,
+        roundScores: player.roundScores || {},
+        streak: player.streak || 0,
         quizTitle: room.quizTitle,
         status: room.status,
+        currentQuestionIndex: room.currentQuestionIndex,
+        totalQuestions: room.questions.length,
       });
 
       broadcastPlayerList(io, room);
-      console.log(`[GameServer] Player '${cleanNick}' joined room ${room.pin} (status: ${room.status})`);
+      console.log(`[GameServer] Player '${player.nickname}' joined/reconnected room ${room.pin} (score: ${player.score}, status: ${room.status})`);
 
       if (room.status === "QUESTION") {
         const currQ = room.questions[room.currentQuestionIndex];
@@ -346,43 +484,120 @@ export function initSocketServer(httpServer: HTTPServer) {
           };
           socket.emit("game:question_active", questionPayload);
           socket.emit("game:question", questionPayload);
+
+          // If the player already answered this question before reloading:
+          if (player.hasAnswered || (player.roundScores && player.roundScores[room.currentQuestionIndex] !== undefined)) {
+            const correctAnswerObj = currQ.answers.find((a) => a.isCorrect);
+            socket.emit("player:answer_locked", { hasAnswered: true });
+            socket.emit("player:answer_feedback", {
+              hasAnswered: true,
+              isCorrect: Boolean(player.lastAnswerCorrect),
+              pointsAwarded: player.lastPointsEarned || 0,
+              streak: player.streak || 0,
+              score: player.score || 0,
+              correctAnswerText: correctAnswerObj ? correctAnswerObj.text : (currQ.explanation || "Correct Option"),
+              explanation: currQ.explanation,
+              timeRemaining: Math.max(room.timeRemaining, 0),
+            });
+          }
         }
+      } else if (room.status === "LEADERBOARD") {
+        showLeaderboard(io, room);
+      } else if (room.status === "RESULTS") {
+        const currQ = room.questions[room.currentQuestionIndex];
+        if (currQ) {
+          socket.emit("game:results", {
+            stats: {
+              counts: room.answersDistribution,
+              percentages: {},
+              totalAnswers: Object.values(room.answersDistribution).reduce((a, b) => a + b, 0),
+              correctAnswerId: currQ.answers.find((a) => a.isCorrect)?.id,
+            },
+            correctAnswerIds: currQ.answers.filter((a) => a.isCorrect).map((a) => a.id),
+            explanation: currQ.explanation,
+            questionText: currQ.text,
+          });
+          const correctAnswerObj = currQ.answers.find((a) => a.isCorrect);
+          socket.emit("player:question_result", {
+            isCorrect: Boolean(player.lastAnswerCorrect),
+            pointsEarned: player.lastPointsEarned || 0,
+            totalScore: player.score || 0,
+            streak: player.streak || 0,
+            rank: player.rank || 1,
+            totalPlayers: room.players.size,
+            correctAnswerText: correctAnswerObj ? correctAnswerObj.text : (currQ.explanation || "Correct Option"),
+            explanation: currQ.explanation,
+          });
+        }
+      } else if (room.status === "PODIUM") {
+        const sortedPlayers = Array.from(room.players.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+        socket.emit("game:podium", {
+          podium: sortedPlayers.slice(0, 3),
+          fullRanking: sortedPlayers,
+          totalPlayers: room.players.size,
+        });
       }
     });
 
     // Player submits answer choice
-    socket.on("player:submit_answer", (data: { pin: string; playerId: string; answerId: string }) => {
+    socket.on("player:submit_answer", (data: { pin: string; playerId?: string; nickname?: string; answerId: string; [key: string]: any }) => {
       const room = activeRooms.get(data.pin);
       if (!room || room.status !== "QUESTION") return;
 
-      const player = room.players.get(data.playerId);
+      const player = (data.playerId && room.players.get(data.playerId))
+        || Array.from(room.players.values()).find((p) => p.socketId === socket.id)
+        || (data.nickname ? Array.from(room.players.values()).find((p) => p.nickname.toLowerCase() === data.nickname!.toLowerCase()) : undefined);
       if (!player || player.hasAnswered) return;
+      player.socketId = socket.id;
 
       const currQ = room.questions[room.currentQuestionIndex];
       const now = Date.now();
       const responseTimeMs = Math.max(now - room.questionStartTime, 50);
 
       // Verify answer
-      const chosenAnswer = currQ.answers.find((a) => a.id === data.answerId);
-      const isCorrect = chosenAnswer ? chosenAnswer.isCorrect : false;
+      let isCorrect = false;
+      if (currQ.type === "TYPE_ANSWER") {
+        const textAnswer = (data.textAnswer || "").trim().toLowerCase();
+        const accepted = (currQ.answers[0]?.text || "").trim().toLowerCase();
+        isCorrect = textAnswer.length > 0 && textAnswer === accepted;
+      } else if (currQ.type === "MULTI_SELECT") {
+        const selectedIds = Array.isArray(data.answerIds) ? data.answerIds.map(String) : (data.answerId ? [String(data.answerId)] : []);
+        const correctIds = currQ.answers.filter((a) => a.isCorrect).map((a) => String(a.id));
+        isCorrect = correctIds.length > 0 &&
+          correctIds.every((id) => selectedIds.includes(id)) &&
+          selectedIds.every((id) => correctIds.includes(id));
+      } else if (currQ.type === "ORDERING") {
+        const orderIds = Array.isArray(data.answerIds) ? data.answerIds.map(String) : [];
+        const correctOrderedIds = [...currQ.answers].sort((a, b) => (a.order || 0) - (b.order || 0)).map((a) => String(a.id));
+        isCorrect = orderIds.length > 0 && JSON.stringify(orderIds) === JSON.stringify(correctOrderedIds);
+      } else if (currQ.type === "POLL") {
+        isCorrect = true; // Full participation credit for voting in poll
+      } else {
+        const chosenAnswer = currQ.answers.find((a) => String(a.id) === String(data.answerId));
+        isCorrect = chosenAnswer ? Boolean(chosenAnswer.isCorrect) : false;
+      }
 
       const scoreResult = calculateScore({
         isCorrect,
-        basePoints: currQ.points,
-        timeLimitSeconds: currQ.timeLimit,
+        basePoints: currQ.points || 1000,
+        timeLimitSeconds: currQ.timeLimit || 20,
         responseTimeMs,
-        currentStreak: player.streak,
+        currentStreak: player.streak || 0,
       });
 
+      if (!player.roundScores) player.roundScores = {};
+      player.roundScores[room.currentQuestionIndex] = scoreResult.points;
       player.hasAnswered = true;
-      player.score += scoreResult.points;
       player.streak = scoreResult.newStreak;
       player.lastPointsEarned = scoreResult.points;
       player.lastAnswerCorrect = isCorrect;
       player.lastResponseTimeMs = responseTimeMs;
+      player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
 
       // Update distribution
-      room.answersDistribution[data.answerId] = (room.answersDistribution[data.answerId] || 0) + 1;
+      if (data.answerId) {
+        room.answersDistribution[data.answerId] = (room.answersDistribution[data.answerId] || 0) + 1;
+      }
 
       const correctAnswerObj = currQ.answers.find((a: any) => a.isCorrect);
 
@@ -404,11 +619,45 @@ export function initSocketServer(httpServer: HTTPServer) {
       });
 
       // Notify host of updated answer count
-      const answeredCount = Array.from(room.players.values()).filter((p) => p.hasAnswered).length;
+      room.answeredCount = (room.answeredCount || 0) + 1;
       io.to(room.hostSocketId).emit("host:answer_received", {
-        answeredCount,
+        playerId: player.id,
+        answeredCount: room.answeredCount,
         totalPlayers: room.players.size,
       });
+      broadcastPlayerList(io, room);
+    });
+
+    // Handle bot toggling or management if required
+    socket.on("host:toggle_bots", (data: { pin: string; enabled: boolean }) => {
+      const room = activeRooms.get(data.pin);
+      if (!room || room.status !== "LOBBY") return;
+      if (data.enabled) {
+        const bots = generateBots(4);
+        bots.forEach((b) => {
+          const player: RoomPlayer = {
+            id: b.id,
+            socketId: `bot_${b.id}`,
+            nickname: b.name,
+            avatar: b.avatar,
+            score: 0,
+            streak: 0,
+            prevRank: 1,
+            rank: room.players.size + 1,
+            isBot: true,
+            hasAnswered: false,
+            lastPointsEarned: 0,
+            lastAnswerCorrect: null,
+            lastResponseTimeMs: 0,
+          };
+          room.players.set(b.id, player);
+        });
+      } else {
+        Array.from(room.players.keys()).forEach((k) => {
+          if (room.players.get(k)?.isBot) room.players.delete(k);
+        });
+      }
+      broadcastPlayerList(io, room);
     });
 
     // Handle disconnects
@@ -416,20 +665,24 @@ export function initSocketServer(httpServer: HTTPServer) {
       // Check if disconnected socket is a host or player
       for (const [pin, room] of Array.from(activeRooms.entries())) {
         if (room.hostSocketId === socket.id) {
-          // Host disconnected - notify room
-          io.to(pin).emit("game:host_disconnected", { message: "Host has disconnected." });
-          if (room.timerInterval) clearInterval(room.timerInterval);
-          clearBotTimers(room);
-          activeRooms.delete(pin);
+          // Do NOT delete room immediately - grant 60 second reload grace window
+          if (room.hostDisconnectTimer) clearTimeout(room.hostDisconnectTimer);
+          room.hostDisconnectTimer = setTimeout(() => {
+            if (activeRooms.has(pin) && room.hostSocketId === socket.id) {
+              io.to(pin).emit("room:closed", { message: "Host left the arena." });
+              if (room.timerInterval) clearInterval(room.timerInterval);
+              if ((room as any).previewInterval) clearInterval((room as any).previewInterval);
+              clearBotTimers(room);
+              activeRooms.delete(pin);
+            }
+          }, 60000);
           break;
         } else {
           // Check players
           for (const [playerId, player] of Array.from(room.players.entries())) {
             if (player.socketId === socket.id) {
-              if (room.status === "LOBBY") {
-                room.players.delete(playerId);
-                broadcastPlayerList(io, room);
-              }
+              player.isConnected = false;
+              broadcastPlayerList(io, room);
               break;
             }
           }
@@ -448,14 +701,28 @@ function broadcastPlayerList(io: SocketIOServer, room: GameRoom) {
     id: p.id,
     nickname: p.nickname,
     avatar: p.avatar,
-    score: p.score,
+    score: p.score || 0,
+    lastPointsEarned: p.lastPointsEarned || 0,
+    streak: p.streak || 0,
+    rank: p.rank || 1,
     isBot: p.isBot,
   }));
 
-  io.to(room.pin).emit("room:players_updated", {
+  const payload = {
     players: playerList,
+    leaderboard: [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0)),
     count: playerList.length,
-  });
+  };
+
+  io.to(room.pin).emit("room:players_updated", payload);
+  io.to(room.pin).emit("room:player_joined", payload);
+  io.to(room.pin).emit("room:player_list", payload);
+  if (room.hostSocketId) {
+    io.to(room.hostSocketId).emit("room:players_updated", payload);
+    io.to(room.hostSocketId).emit("room:player_joined", payload);
+    io.to(room.hostSocketId).emit("host:players_update", payload);
+    io.to(room.hostSocketId).emit("room:player_list", payload);
+  }
 }
 
 function startQuestion(io: SocketIOServer, room: GameRoom) {
@@ -474,6 +741,8 @@ function startQuestion(io: SocketIOServer, room: GameRoom) {
     p.hasAnswered = false;
     p.lastPointsEarned = 0;
     p.lastAnswerCorrect = null;
+    if (!p.roundScores) p.roundScores = {};
+    p.score = Object.values(p.roundScores).reduce((sum, pts) => sum + pts, 0);
   });
 
   const sanitizedAnswers = currQ.answers.map((a) => ({
@@ -575,12 +844,14 @@ function startQuestion(io: SocketIOServer, room: GameRoom) {
                 currentStreak: player.streak,
               });
 
+              if (!player.roundScores) player.roundScores = {};
+              player.roundScores[room.currentQuestionIndex] = scoreResult.points;
               player.hasAnswered = true;
-              player.score += scoreResult.points;
               player.streak = scoreResult.newStreak;
               player.lastPointsEarned = scoreResult.points;
               player.lastAnswerCorrect = isCorrect;
               player.lastResponseTimeMs = botAns.responseTimeMs;
+              player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
 
               room.answersDistribution[botAns.answerId] = (room.answersDistribution[botAns.answerId] || 0) + 1;
 
@@ -589,6 +860,7 @@ function startQuestion(io: SocketIOServer, room: GameRoom) {
                 answeredCount,
                 totalPlayers: room.players.size,
               });
+              broadcastPlayerList(io, room);
             }
           }, botAns.responseTimeMs);
 
@@ -618,8 +890,35 @@ function lockAnswers(io: SocketIOServer, room: GameRoom) {
   room.status = "RESULTS";
   const currQ = room.questions[room.currentQuestionIndex];
 
+  // Guarantee roundScores for all players on currentQuestionIndex
+  for (const player of room.players.values()) {
+    if (!player.roundScores) player.roundScores = {};
+    if (!player.hasAnswered && player.roundScores[room.currentQuestionIndex] === undefined) {
+      player.roundScores[room.currentQuestionIndex] = 0;
+      player.lastPointsEarned = 0;
+      player.lastAnswerCorrect = false;
+    } else {
+      player.lastPointsEarned = player.roundScores[room.currentQuestionIndex] || 0;
+    }
+    player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
+  }
+
   // Calculate updated leaderboard ranks
   updatePlayerRanks(room);
+
+  const sortedList = Array.from(room.players.values()).sort((a, b) => b.score - a.score);
+  const playerLineup = sortedList.map((p) => ({
+    id: p.id,
+    nickname: p.nickname,
+    avatar: p.avatar,
+    score: p.score,
+    lastPointsEarned: p.lastPointsEarned || 0,
+    isCorrect: p.lastAnswerCorrect || false,
+    streak: p.streak,
+    rank: p.rank,
+    prevRank: p.prevRank,
+    rankDiff: p.prevRank - p.rank,
+  }));
 
   // Send result breakdown to host
   io.to(room.hostSocketId).emit("host:question_results", {
@@ -627,6 +926,14 @@ function lockAnswers(io: SocketIOServer, room: GameRoom) {
     explanation: currQ.explanation,
     answersDistribution: room.answersDistribution,
     questionText: currQ.text,
+    leaderboard: playerLineup,
+  });
+
+  io.to(room.pin).emit("game:results", {
+    correctAnswerIds: currQ.answers.filter((a) => a.isCorrect).map((a) => a.id),
+    explanation: currQ.explanation,
+    questionText: currQ.text,
+    leaderboard: playerLineup,
   });
 
   // Send personalized results to each player
@@ -647,16 +954,27 @@ function lockAnswers(io: SocketIOServer, room: GameRoom) {
 
 function showLeaderboard(io: SocketIOServer, room: GameRoom) {
   room.status = "LEADERBOARD";
+
+  // Re-verify roundScores and cumulative scores
+  for (const player of room.players.values()) {
+    if (!player.roundScores) player.roundScores = {};
+    if (player.roundScores[room.currentQuestionIndex] !== undefined) {
+      player.lastPointsEarned = player.roundScores[room.currentQuestionIndex];
+    }
+    player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
+  }
+
   updatePlayerRanks(room);
 
   const leaderboard = Array.from(room.players.values())
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
     .map((p) => ({
       id: p.id,
       nickname: p.nickname,
       avatar: p.avatar,
       score: p.score,
+      lastPointsEarned: p.lastPointsEarned || 0,
+      isCorrect: p.lastAnswerCorrect || false,
       streak: p.streak,
       rank: p.rank,
       prevRank: p.prevRank,

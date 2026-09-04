@@ -17,6 +17,32 @@ export async function uploadImageFile(file: File): Promise<string> {
   return compressedBase64;
 }
 
+export async function uploadImageUrl(url: string): Promise<string> {
+  const cleanUrl = url.trim().replace(/^["']|["']$/g, "");
+  if (!cleanUrl.startsWith("http")) return cleanUrl;
+
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: cleanUrl }),
+    });
+    const data = await res.json();
+    if (data.url) {
+      return data.url;
+    }
+  } catch (e) {
+    console.warn("Upload URL failed, falling back to direct URL:", e);
+  }
+  return cleanUrl;
+}
+
+export function getSafeImageUrl(url?: string | null): string {
+  if (!url) return "";
+  const clean = url.trim().replace(/^["']|["']$/g, "");
+  return clean;
+}
+
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();

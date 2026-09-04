@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Copy, Check, Play, Square, Pause, ArrowRight, Trophy, Sparkles } from "lucide-react";
+import { Copy, Check, Play, Square, ArrowRight, Trophy, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 import { initSocket } from "@/lib/socket";
 import { soundEffects } from "@/lib/soundEffects";
+import SafeImage from "@/components/SafeImage";
 
 export default function HostScreenPage() {
   const params = useParams();
@@ -18,11 +19,11 @@ export default function HostScreenPage() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [timeRemaining, setTimeRemaining] = useState(20);
+  const [totalTimeLimit, setTotalTimeLimit] = useState(20);
   const [players, setPlayers] = useState<any[]>([]);
   const [answerStats, setAnswerStats] = useState<any>({ counts: {}, percentages: {}, totalAnswers: 0, correctAnswerId: null });
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const socketRef = useRef<any>(null);
 
@@ -32,20 +33,42 @@ export default function HostScreenPage() {
 
     const joinAsHost = () => {
       socket.emit("host:create_room", { pin });
+      socket.emit("host:get_players", { pin });
     };
 
+    socket.on("connect", joinAsHost);
     if (socket.connected) {
       joinAsHost();
-    } else {
-      socket.on("connect", joinAsHost);
     }
 
-    const handlePlayersUpdated = ({ players: currentPlayers }: any) => {
-      setPlayers(currentPlayers || []);
+    const handlePlayersUpdated = (data: any) => {
+      const currentPlayers = Array.isArray(data) ? data : (data?.players || []);
+      setPlayers((prev) => {
+        if (currentPlayers.length > prev.length) {
+          try {
+            soundEffects.playPop();
+          } catch (_) {}
+        }
+        return currentPlayers;
+      });
+      const lb = data?.leaderboard || currentPlayers;
+      if (Array.isArray(lb) && lb.length > 0) {
+        setLeaderboard(lb);
+      }
     };
 
+    socket.on("host:room_created", handlePlayersUpdated);
+    socket.on("host:players_update", handlePlayersUpdated);
     socket.on("room:player_joined", handlePlayersUpdated);
     socket.on("room:players_updated", handlePlayersUpdated);
+    socket.on("room:player_list", handlePlayersUpdated);
+
+    // Fast sync interval in lobby to ensure immediate visual updates
+    const syncInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit("host:get_players", { pin });
+      }
+    }, 1200);
 
     socket.on("game:starting", () => {
       setGameState("STARTING");
@@ -68,8 +91,9 @@ export default function HostScreenPage() {
       setCurrentQuestion(data.question || data);
       setQuestionIndex(data.questionIndex);
       setTotalQuestions(data.totalQuestions);
-      setTimeRemaining(data.timeLimit || 20);
-      setIsPaused(false);
+      const limit = data.timeLimit || data.question?.timeLimit || 20;
+      setTotalTimeLimit(limit);
+      setTimeRemaining(limit);
     };
 
     socket.on("host:question", handleHostQuestion);
@@ -90,10 +114,26 @@ export default function HostScreenPage() {
     socket.on("game:results", (data: any) => {
       setGameState("RESULTS");
       setAnswerStats(data.stats);
+      if (data.leaderboard) {
+        setLeaderboard(data.leaderboard);
+      }
       soundEffects.playCorrect();
     });
 
+    socket.on("host:question_results", (data: any) => {
+      setGameState("RESULTS");
+      if (data.stats) setAnswerStats(data.stats);
+      if (data.leaderboard) {
+        setLeaderboard(data.leaderboard);
+      }
+    });
+
     socket.on("game:leaderboard", (data: any) => {
+      setGameState("LEADERBOARD");
+      setLeaderboard(data.leaderboard || []);
+    });
+
+    socket.on("host:leaderboard", (data: any) => {
       setGameState("LEADERBOARD");
       setLeaderboard(data.leaderboard || []);
     });
@@ -110,9 +150,13 @@ export default function HostScreenPage() {
     });
 
     return () => {
+      clearInterval(syncInterval);
       socket.off("connect", joinAsHost);
+      socket.off("host:room_created", handlePlayersUpdated);
+      socket.off("host:players_update", handlePlayersUpdated);
       socket.off("room:player_joined", handlePlayersUpdated);
       socket.off("room:players_updated", handlePlayersUpdated);
+      socket.off("room:player_list", handlePlayersUpdated);
       socket.off("game:starting");
       socket.off("host:question", handleHostQuestion);
       socket.off("game:question", handleHostQuestion);
@@ -120,7 +164,9 @@ export default function HostScreenPage() {
       socket.off("timer:tick");
       socket.off("game:timer_tick");
       socket.off("game:results");
+      socket.off("host:question_results");
       socket.off("game:leaderboard");
+      socket.off("host:leaderboard");
       socket.off("game:podium");
     };
   }, [pin]);
@@ -142,7 +188,7 @@ export default function HostScreenPage() {
 
   const handleShowLeaderboard = () => {
     socketRef.current?.emit("host:show_leaderboard", { pin });
-    socketRef.current?.emit("host:next_step", { pin });
+    setGameState("LEADERBOARD");
   };
 
   const handleNextQuestion = () => {
@@ -150,11 +196,7 @@ export default function HostScreenPage() {
   };
 
   const handleNextStep = () => {
-    if (gameState === "RESULTS") {
-      handleShowLeaderboard();
-    } else if (gameState === "LEADERBOARD") {
-      handleNextQuestion();
-    }
+    handleNextQuestion();
   };
 
   const handleEndGame = () => {
@@ -273,66 +315,70 @@ export default function HostScreenPage() {
       {/* 3. FULL-BLEED LIVE QUESTION & RESULTS VIEW (NO CARDS) */}
       {/* ========================================================================= */}
       {(gameState === "QUESTION" || gameState === "RESULTS") && currentQuestion && (
-        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-4">
-          {/* Top Bar Header */}
-          <div className="flex items-center justify-between border-b border-purple-400/20 pb-3 shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="px-3.5 py-1.5 bg-white/10 rounded-xl text-xs sm:text-sm font-black border border-white/15">
-                Question {questionIndex + 1} of {totalQuestions}
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-2.5 sm:space-y-4">
+          {/* Clean Top Bar Header (Question index format: 2/10, Game PIN, and Action buttons) */}
+          <div className="flex items-center justify-between border-b border-purple-400/20 pb-2.5 sm:pb-3 shrink-0 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-white/10 rounded-xl text-xs sm:text-sm font-black border border-white/15 tracking-wide">
+                {questionIndex + 1}/{totalQuestions}
               </span>
-              <span className="font-mono text-xs sm:text-sm font-black bg-indigo-900/60 px-3 py-1.5 rounded-xl border border-indigo-400/30">
+              <span className="font-mono text-xs sm:text-sm font-black bg-indigo-900/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-indigo-400/30">
                 PIN: {pin}
               </span>
             </div>
 
-            {/* Countdown Timer */}
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-amber-400 flex items-center justify-center text-2xl sm:text-3xl font-black text-amber-300 bg-purple-950/80 shadow-2xl ring-4 ring-amber-400/20">
-              {timeRemaining}
-            </div>
-
-            {/* Host Controls */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              {gameState === "QUESTION" && (
-                <button
-                  onClick={handleSkipQuestion}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95"
-                >
-                  <ArrowRight className="w-4 h-4" /> Skip
-                </button>
-              )}
-
-              {gameState === "RESULTS" && (
-                <button
-                  onClick={handleShowLeaderboard}
-                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95"
-                >
-                  Leaderboard <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
+            {/* Host Controls: TWO BUTTONS (Leaderboard & Next) */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
+              <button
+                onClick={handleShowLeaderboard}
+                className="px-2.5 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95 border border-indigo-400/40"
+                title="View Leaderboard & Player Lineup"
+              >
+                <Trophy className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-amber-300 shrink-0" />
+                <span>Leaderboard</span>
+              </button>
 
               <button
-                onClick={() => setIsPaused(!isPaused)}
-                className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-bold rounded-xl transition flex items-center gap-1"
+                onClick={handleNextQuestion}
+                className="px-3 sm:px-5 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95 shadow-emerald-950/30"
+                title="Go to Next Question"
               >
-                <Pause className="w-4 h-4" /> {isPaused ? "Resume" : "Pause"}
+                <span>{questionIndex + 1 >= totalQuestions ? "Podium" : "Next"}</span>
+                <ArrowRight className="w-3.5 sm:w-4 h-3.5 sm:h-4 shrink-0" />
               </button>
             </div>
           </div>
 
-          {/* Center Question Prompt & Media */}
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4 my-auto min-h-0 space-y-3">
+          {/* Center Question Prompt & Media (Responsive typography adjusted for phones and larger screens) */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-2 sm:px-4 my-auto min-h-0 space-y-2 sm:space-y-3 overflow-y-auto">
             {currentQuestion.image && (
-              <div className="max-h-36 sm:max-h-48 w-auto max-w-full rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
-                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-36 sm:max-h-48" />
+              <div className="max-h-20 sm:max-h-32 md:max-h-48 w-auto max-w-full rounded-xl sm:rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl shrink-0">
+                <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-32 md:max-h-48" />
               </div>
             )}
-            <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white leading-tight max-w-5xl">
+            <h1 className="text-base sm:text-2xl md:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight max-w-5xl break-words line-clamp-3 sm:line-clamp-4 md:line-clamp-none">
               {currentQuestion.text}
             </h1>
           </div>
 
-          {/* Full-Width 2x2 Answers Display Across Bottom */}
-          <div className={`w-full grid gap-3 sm:gap-4 shrink-0 max-h-[38vh] min-h-[140px] ${
+          {/* Smooth Timer Bar Line (Positioned below the question prompt) */}
+          <div className="w-full max-w-4xl mx-auto shrink-0 px-1 py-0.5 sm:py-1">
+            <div className="w-full h-1.5 sm:h-2 md:h-2.5 bg-white/10 backdrop-blur-md rounded-full overflow-hidden border border-white/15 p-0.5 shadow-inner">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                  timeRemaining <= 5 && gameState === "QUESTION"
+                    ? "bg-gradient-to-r from-rose-500 to-amber-500 shadow-[0_0_12px_rgba(244,63,94,0.8)] animate-pulse"
+                    : "bg-gradient-to-r from-indigo-400 via-purple-400 to-amber-400 shadow-[0_0_10px_rgba(129,140,248,0.5)]"
+                }`}
+                style={{
+                  width: `${gameState === "RESULTS" ? 100 : Math.max(0, Math.min(100, (timeRemaining / Math.max(totalTimeLimit, 1)) * 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Full-Width 2x2 Answers Display Across Bottom (Responsive layout and fonts) */}
+          <div className={`w-full grid gap-2 sm:gap-3 md:gap-4 shrink-0 max-h-[38vh] min-h-[100px] sm:min-h-[140px] ${
             (currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2)
               ? "grid-cols-2 grid-rows-1"
               : "grid-cols-1 sm:grid-cols-2 grid-rows-2"
@@ -342,10 +388,10 @@ export default function HostScreenPage() {
               const isTrue = (ans.text || "").toLowerCase().includes("true");
 
               const choiceShapes = [
-                { bg: "bg-[#E21B3C] border-b-4 border-[#9c1228]", icon: "▲" },
-                { bg: "bg-[#1368CE] border-b-4 border-[#0d4a94]", icon: "◆" },
-                { bg: "bg-[#D89E00] border-b-4 border-[#9e7400]", icon: "●" },
-                { bg: "bg-[#26890C] border-b-4 border-[#1a5e08]", icon: "■" },
+                { bg: "bg-[#E21B3C] border-b-2 sm:border-b-4 border-[#9c1228]", icon: "▲" },
+                { bg: "bg-[#1368CE] border-b-2 sm:border-b-4 border-[#0d4a94]", icon: "◆" },
+                { bg: "bg-[#D89E00] border-b-2 sm:border-b-4 border-[#9e7400]", icon: "●" },
+                { bg: "bg-[#26890C] border-b-2 sm:border-b-4 border-[#1a5e08]", icon: "■" },
               ];
 
               const style = isTF
@@ -360,30 +406,30 @@ export default function HostScreenPage() {
               return (
                 <div
                   key={ans.id || idx}
-                  className={`w-full h-full min-h-[58px] p-3 sm:p-4 rounded-2xl font-black text-base sm:text-xl flex items-center justify-between shadow-2xl transition-all duration-300 ${
+                  className={`w-full h-full min-h-[44px] sm:min-h-[58px] p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl font-bold sm:font-black text-xs sm:text-base md:text-xl flex items-center justify-between shadow-xl transition-all duration-300 ${
                     style.bg
                   } ${
                     isRevealed && !isCorrect ? "opacity-35 grayscale" : ""
                   } ${
-                    isRevealed && isCorrect ? "ring-4 ring-white shadow-emerald-500/50 scale-[1.01]" : ""
+                    isRevealed && isCorrect ? "ring-2 sm:ring-4 ring-white shadow-emerald-500/50 scale-[1.01]" : ""
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-xl sm:text-2xl opacity-90 shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <span className="text-sm sm:text-xl md:text-2xl opacity-90 shrink-0">
                       {style.icon}
                     </span>
-                    <span className="text-left font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1">
+                    <span className="text-left font-bold sm:font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1">
                       {ans.text}
                     </span>
                   </div>
 
                   {isRevealed && (
-                    <div className="flex items-center gap-2 shrink-0 ml-3">
-                      <span className="text-xs sm:text-sm font-mono bg-black/30 px-2.5 py-1 rounded-lg">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2 sm:ml-3">
+                      <span className="text-[10px] sm:text-xs md:text-sm font-mono bg-black/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg">
                         {votes} ({pct}%)
                       </span>
                       {isCorrect && (
-                        <span className="text-xs bg-white text-emerald-700 px-3 py-1 rounded-full font-black uppercase shadow">
+                        <span className="text-[10px] sm:text-xs bg-white text-emerald-700 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-black uppercase shadow">
                           ✓ Correct
                         </span>
                       )}
@@ -397,62 +443,134 @@ export default function HostScreenPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. FULL-BLEED LEADERBOARD VIEW (NO CARDS) */}
+      {/* 4. FULL-BLEED LEADERBOARD VIEW (PLAYER LINEUP & MARKS) */}
       {/* ========================================================================= */}
       {gameState === "LEADERBOARD" && (
-        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-6">
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-3 sm:space-y-4">
           {/* Top Bar Header */}
-          <div className="flex items-center justify-between border-b border-purple-400/20 pb-4">
+          <div className="flex items-center justify-between border-b border-purple-400/20 pb-2.5 sm:pb-3 gap-2 shrink-0">
             <div>
-              <span className="text-xs font-black uppercase tracking-wider text-purple-300 block">Question {questionIndex + 1} Complete</span>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Arena Leaderboard 🏆</h2>
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-purple-300 block">
+                {questionIndex + 1}/{totalQuestions} Complete
+              </span>
+              <h2 className="text-base sm:text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-2">
+                Player Lineup & Standings 🏆
+              </h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-sm font-black bg-indigo-900/60 px-3.5 py-2 rounded-xl border border-indigo-400/30">
-                PIN: {pin}
-              </span>
+            {/* Host Controls: TWO BUTTONS (Leaderboard & Next) */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
               <button
-                onClick={handleNextStep}
-                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm sm:text-base rounded-xl shadow-xl transition flex items-center gap-2 active:scale-95"
+                onClick={() => {
+                  if (currentQuestion) setGameState("RESULTS");
+                }}
+                className="px-2.5 sm:px-4 py-1.5 sm:py-2 bg-indigo-500/80 hover:bg-indigo-500 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95 border border-indigo-300/40 ring-2 ring-indigo-400/30"
+                title="Lineup & Standings Active (Click to toggle question results)"
               >
-                Next Question <ArrowRight className="w-5 h-5" />
+                <Trophy className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-amber-300 shrink-0" />
+                <span>Leaderboard</span>
+              </button>
+
+              <button
+                onClick={handleNextQuestion}
+                className="px-3 sm:px-5 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-xl transition shadow-lg flex items-center gap-1.5 active:scale-95 shadow-emerald-950/30"
+                title="Go to Next Question"
+              >
+                <span>{questionIndex + 1 >= totalQuestions ? "Podium" : "Next"}</span>
+                <ArrowRight className="w-3.5 sm:w-4 h-3.5 sm:h-4 shrink-0" />
               </button>
             </div>
           </div>
 
-          {/* Ranked List Grid */}
-          <div className="w-full max-w-4xl mx-auto flex-1 flex flex-col justify-center space-y-3 min-h-0 overflow-y-auto p-2">
-            {leaderboard.slice(0, 6).map((p, idx) => {
-              const medalIcons = ["🥇", "🥈", "🥉"];
-              return (
-                <div
-                  key={p.id || idx}
-                  className={`p-4 px-6 rounded-2xl border flex items-center justify-between shadow-xl transition ${
-                    idx === 0
-                      ? "bg-gradient-to-r from-amber-500/30 to-amber-600/20 border-amber-400/50 ring-2 ring-amber-400/30"
-                      : "bg-white/10 backdrop-blur-md border-white/15"
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-2xl font-black w-8 text-center">
-                      {idx < 3 ? medalIcons[idx] : `#${idx + 1}`}
-                    </span>
-                    <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-inner">
-                      {p.avatar || "🦊"}
-                    </span>
-                    <span className="font-black text-xl text-white">{p.nickname}</span>
+          {/* Ranked List Grid - All players arranged from highest total marks to lowest */}
+          <div className="w-full max-w-4xl mx-auto flex-1 flex flex-col space-y-2 sm:space-y-2.5 min-h-0 overflow-y-auto pr-1 py-1">
+            {(() => {
+              const currentLineup = (leaderboard && leaderboard.length > 0)
+                ? leaderboard
+                : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
+
+              if (currentLineup.length === 0) {
+                return (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-white/5 rounded-2xl border border-white/10 my-auto">
+                    <span className="text-3xl sm:text-4xl mb-2">👥</span>
+                    <p className="text-sm sm:text-base font-black text-white">No player scores recorded yet</p>
+                    <p className="text-xs text-purple-300">Marks and scores will update as questions are answered.</p>
                   </div>
-                  <span className="font-mono font-black text-2xl sm:text-3xl text-amber-300">
-                    {p.score?.toLocaleString()} pts
-                  </span>
-                </div>
-              );
-            })}
+                );
+              }
+
+              return currentLineup.map((p: any, idx: number) => {
+                const medalIcons = ["🥇", "🥈", "🥉"];
+                const earned = Number(p.lastPointsEarned ?? p.pointsEarned ?? p.pointsAwarded ?? 0);
+                const totalScore = Number(p.score ?? p.totalScore ?? p.points ?? 0);
+                const hasGained = earned > 0;
+
+                return (
+                  <div
+                    key={p.id || idx}
+                    className={`p-2.5 sm:p-3.5 md:p-4 px-3 sm:px-5 md:px-6 rounded-xl sm:rounded-2xl border flex items-center justify-between shadow-xl transition-all duration-300 ${
+                      idx === 0
+                        ? "bg-gradient-to-r from-amber-500/25 via-purple-900/40 to-amber-600/20 border-amber-400/60 ring-2 ring-amber-400/30"
+                        : idx === 1
+                        ? "bg-gradient-to-r from-slate-400/20 via-purple-900/30 to-slate-500/15 border-slate-300/40"
+                        : idx === 2
+                        ? "bg-gradient-to-r from-amber-700/25 via-purple-900/30 to-amber-800/15 border-amber-600/30"
+                        : "bg-white/10 backdrop-blur-md border-white/15"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1 mr-2">
+                      <span className="text-base sm:text-xl md:text-2xl font-black w-6 sm:w-8 text-center shrink-0">
+                        {idx < 3 ? medalIcons[idx] : `#${idx + 1}`}
+                      </span>
+                      <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/20 flex items-center justify-center text-lg sm:text-2xl shadow-inner shrink-0">
+                        {p.avatar || "🦊"}
+                      </span>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-black text-xs sm:text-base md:text-lg text-white truncate">
+                          {p.nickname}
+                        </span>
+                        {p.streak > 1 && (
+                          <span className="text-[10px] sm:text-xs font-bold text-amber-400 flex items-center gap-1">
+                            🔥 {p.streak} streak
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Marks for that question + Total Marks */}
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="text-[9px] sm:text-[11px] font-bold text-purple-200/70 uppercase">
+                          This Question
+                        </span>
+                        <span
+                          className={`text-[11px] sm:text-xs md:text-sm font-black px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg ${
+                            hasGained
+                              ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                              : "bg-white/5 text-slate-400 border border-white/10"
+                          }`}
+                        >
+                          {hasGained ? `+${earned.toLocaleString()} pts` : "+0 pts"}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col items-end min-w-[70px] sm:min-w-[95px]">
+                        <span className="text-[9px] sm:text-[11px] font-bold text-purple-200/70 uppercase">
+                          Total Marks
+                        </span>
+                        <span className="font-mono font-black text-xs sm:text-lg md:text-xl text-amber-300">
+                          {totalScore.toLocaleString()} pts
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
 
-          <div className="text-center text-xs text-purple-300/80 pt-2 border-t border-purple-400/20">
-            Live arena scoring based on accuracy and response speed
+          <div className="text-center text-[10px] sm:text-xs text-purple-300/80 pt-1.5 border-t border-purple-400/20 shrink-0">
+            Player lineup ranked by total marks accumulated across all questions so far
           </div>
         </div>
       )}

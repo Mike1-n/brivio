@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, Trash2, ArrowUp, ArrowDown, Save, Play, Image as ImageIcon, Check, HelpCircle } from "lucide-react";
-import { uploadImageFile } from "@/lib/upload";
+import { Plus, Trash2, ArrowUp, ArrowDown, Save, Play, Image as ImageIcon, Check, HelpCircle, ChevronLeft, ChevronRight, AlertCircle, Shuffle } from "lucide-react";
+import { uploadImageFile, uploadImageUrl } from "@/lib/upload";
 import ImageCropperModal from "@/components/ImageCropperModal";
+import SafeImage from "@/components/SafeImage";
 
 export type QuestionType =
   | "MULTIPLE_CHOICE"
@@ -71,8 +72,48 @@ export default function EditQuizPage() {
   const [lastSavedTime, setLastSavedTime] = useState<string>("");
   const [isUploadingQImage, setIsUploadingQImage] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isImportingCover, setIsImportingCover] = useState(false);
+  const [isImportingQImage, setIsImportingQImage] = useState(false);
   const qFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const coverFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const cleanImageUrl = (raw: string) => {
+    let val = raw.trim().replace(/^["']|["']$/g, "");
+    try {
+      const u = new URL(val);
+      const imgParam = u.searchParams.get("imgurl");
+      if (imgParam) val = imgParam;
+    } catch (_) {}
+    return val;
+  };
+
+  const handleImportCover = async (rawUrl: string) => {
+    const cleaned = cleanImageUrl(rawUrl);
+    if (!cleaned.startsWith("http")) return;
+    setIsImportingCover(true);
+    try {
+      const permanentUrl = await uploadImageUrl(cleaned);
+      setCoverImage(permanentUrl);
+    } catch (e) {
+      console.warn("Import cover failed:", e);
+    } finally {
+      setIsImportingCover(false);
+    }
+  };
+
+  const handleImportQuestionImage = async (rawUrl: string) => {
+    const cleaned = cleanImageUrl(rawUrl);
+    if (!cleaned.startsWith("http")) return;
+    setIsImportingQImage(true);
+    try {
+      const permanentUrl = await uploadImageUrl(cleaned);
+      updateCurrentQuestion({ image: permanentUrl });
+    } catch (e) {
+      console.warn("Import question image failed:", e);
+    } finally {
+      setIsImportingQImage(false);
+    }
+  };
 
   // Image Cropper Modal State
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -241,7 +282,30 @@ export default function EditQuizPage() {
 
   const currentQ = questions[activeQuestionIndex] || questions[0];
 
+  const validateCurrentQuestion = (idx = activeQuestionIndex) => {
+    const q = questions[idx];
+    if (!q) return true;
+    if (!q.text.trim()) {
+      setError(`Question #${idx + 1} prompt cannot be blank. Please enter a question prompt.`);
+      const input = document.getElementById("edit_question_prompt_input");
+      input?.focus();
+      return false;
+    }
+    return true;
+  };
+
+  const handleSelectQuestion = (targetIdx: number) => {
+    if (targetIdx === activeQuestionIndex) return;
+    if (targetIdx > activeQuestionIndex) {
+      if (!validateCurrentQuestion()) return;
+    }
+    setError("");
+    setActiveQuestionIndex(targetIdx);
+  };
+
   const handleAddQuestion = (type: "MULTIPLE_CHOICE" | "TRUE_FALSE" = "MULTIPLE_CHOICE") => {
+    if (!validateCurrentQuestion()) return;
+    setError("");
     const newQ: QuestionForm = {
       id: `q_${Date.now()}`,
       text: "",
@@ -277,6 +341,23 @@ export default function EditQuizPage() {
 
     setQuestions(copy);
     setActiveQuestionIndex(targetIdx);
+  };
+
+  const handleShuffleQuestions = () => {
+    if (questions.length <= 1) return;
+    setQuestions((prev) => {
+      const currentActiveQ = prev[activeQuestionIndex];
+      const shuffled = [...prev];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      if (currentActiveQ) {
+        const newIdx = shuffled.findIndex((q) => q.id === currentActiveQ.id);
+        if (newIdx !== -1) setActiveQuestionIndex(newIdx);
+      }
+      return shuffled;
+    });
   };
 
   const handleTypeChange = (newType: string) => {
@@ -502,13 +583,24 @@ export default function EditQuizPage() {
                   {currentQ.type}
                 </span>
               </span>
-              <button
-                type="button"
-                onClick={() => handleAddQuestion()}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Question
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleShuffleQuestions}
+                  disabled={questions.length <= 1}
+                  title="Shuffle question order"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-indigo-600" /> Shuffle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddQuestion()}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Question
+                </button>
+              </div>
             </div>
 
             {/* Horizontal scrollable question chips */}
@@ -533,15 +625,26 @@ export default function EditQuizPage() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Questions list (Hidden on Mobile) */}
             <div className="hidden lg:block lg:col-span-1 space-y-4">
-              <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                Questions ({questions.length})
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                  Questions ({questions.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={handleShuffleQuestions}
+                  disabled={questions.length <= 1}
+                  title="Shuffle question order"
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm"
+                >
+                  <Shuffle className="w-3 h-3 text-indigo-600" /> Shuffle
+                </button>
+              </div>
 
               <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                 {questions.map((q, idx) => (
                   <div
                     key={q.id}
-                    onClick={() => setActiveQuestionIndex(idx)}
+                    onClick={() => handleSelectQuestion(idx)}
                     className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
                       activeQuestionIndex === idx
                         ? "bg-indigo-50 border-indigo-500 text-indigo-950 shadow-sm"
@@ -613,6 +716,76 @@ export default function EditQuizPage() {
                   <Plus className="w-4 h-4" /> Add Question
                 </button>
               </div>
+
+              {/* Question Image (Optional) in Sidebar */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    Question Image
+                  </span>
+                  {currentQ.image && (
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentQuestion({ image: "" })}
+                      className="text-[11px] text-rose-600 font-bold hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </label>
+
+                {currentQ.image ? (
+                  <div className="w-full h-24 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                    <SafeImage src={currentQ.image} alt="Question" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => qFileInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/40 text-white text-xs font-black opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
+                    >
+                      Change Image
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => qFileInputRef.current?.click()}
+                    disabled={isUploadingQImage}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    {isUploadingQImage ? "Uploading..." : "Upload from Device"}
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={currentQ.image || ""}
+                      onChange={(e) => updateCurrentQuestion({ image: cleanImageUrl(e.target.value) })}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData("text");
+                        if (pasted && pasted.startsWith("http")) {
+                          handleImportQuestionImage(pasted);
+                        }
+                      }}
+                      placeholder="Or paste image URL..."
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
+                    />
+                    {currentQ.image && currentQ.image.startsWith("http") && !currentQ.image.includes("r2.dev") && (
+                      <button
+                        type="button"
+                        onClick={() => handleImportQuestionImage(currentQ.image!)}
+                        disabled={isImportingQImage}
+                        title="Import image to host permanently"
+                        className="px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition shrink-0 active:scale-95"
+                      >
+                        {isImportingQImage ? "..." : "Import"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Active Question Editor */}
@@ -676,77 +849,37 @@ export default function EditQuizPage() {
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                    Question Prompt Text
+                    Question Prompt Text <span className="text-rose-500">*</span>
                   </label>
                   <textarea
+                    id="edit_question_prompt_input"
                     value={currentQ.text}
-                    onChange={(e) => updateCurrentQuestion({ text: e.target.value })}
+                    onChange={(e) => {
+                      setError("");
+                      updateCurrentQuestion({ text: e.target.value });
+                    }}
                     placeholder="Type your question prompt..."
                     rows={2}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-base font-bold placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition resize-none"
+                    className={`w-full px-4 py-3 bg-slate-50 border rounded-2xl text-slate-900 text-base font-bold placeholder-slate-400 focus:outline-none focus:bg-white transition resize-none ${
+                      error && !currentQ.text.trim()
+                        ? "border-rose-500 ring-2 ring-rose-200"
+                        : "border-slate-200 focus:border-indigo-600"
+                    }`}
                   />
+                  {error && !currentQ.text.trim() && (
+                    <p className="text-xs text-rose-600 font-bold mt-1 flex items-center gap-1 animate-fade-in">
+                      <AlertCircle className="w-3.5 h-3.5" /> Please enter a question prompt before moving to the next question.
+                    </p>
+                  )}
                 </div>
 
-                {/* Question Media Image (Upload from device or URL) */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
-                      Question Image (Optional)
-                    </span>
-                    {currentQ.image && (
-                      <button
-                        type="button"
-                        onClick={() => updateCurrentQuestion({ image: "" })}
-                        className="text-[11px] text-rose-600 font-bold hover:underline"
-                      >
-                        Remove Image
-                      </button>
-                    )}
-                  </label>
-
-                  <input
-                    type="file"
-                    ref={qFileInputRef}
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleQuestionImageUpload}
-                  />
-
-                  <div className="flex items-center gap-3">
-                    {currentQ.image ? (
-                      <div className="w-20 h-16 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 relative group">
-                        <img src={currentQ.image} alt="Question" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => qFileInputRef.current?.click()}
-                          className="absolute inset-0 bg-black/40 text-white text-[10px] font-black opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <div className="flex-1 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                      <button
-                        type="button"
-                        onClick={() => qFileInputRef.current?.click()}
-                        disabled={isUploadingQImage}
-                        className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 transition flex-shrink-0 active:scale-95"
-                      >
-                        <ImageIcon className="w-4 h-4 text-indigo-600" />
-                        {isUploadingQImage ? "Uploading..." : "Upload from Device"}
-                      </button>
-                      <input
-                        type="text"
-                        value={currentQ.image || ""}
-                        onChange={(e) => updateCurrentQuestion({ image: e.target.value })}
-                        placeholder="Or paste image URL..."
-                        className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <input
+                  type="file"
+                  ref={qFileInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleQuestionImageUpload}
+                />
 
                 {/* 1. TRUE_FALSE */}
                 {currentQ.type === "TRUE_FALSE" && (
@@ -938,6 +1071,38 @@ export default function EditQuizPage() {
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs font-medium placeholder-slate-400 focus:outline-none focus:border-indigo-600 transition resize-none"
                   />
                 </div>
+
+                {/* Question Editor Bottom Navigation Bar */}
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    disabled={activeQuestionIndex === 0}
+                    onClick={() => handleSelectQuestion(Math.max(0, activeQuestionIndex - 1))}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Previous Question
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {activeQuestionIndex < questions.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectQuestion(activeQuestionIndex + 1)}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5 active:scale-95"
+                      >
+                        Next Question <ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAddQuestion()}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5 active:scale-95"
+                      >
+                        <Plus className="w-4 h-4" /> Add Next Question
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Quiz Overall Settings */}
@@ -978,7 +1143,7 @@ export default function EditQuizPage() {
                       >
                         {coverImage ? (
                           <>
-                            <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
+                            <SafeImage src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-black">
                               Change Picture
                             </div>
@@ -1013,13 +1178,31 @@ export default function EditQuizPage() {
                           )}
                         </div>
 
-                        <input
-                          type="text"
-                          value={coverImage}
-                          onChange={(e) => setCoverImage(e.target.value)}
-                          placeholder="Or paste image web URL..."
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={coverImage}
+                            onChange={(e) => setCoverImage(cleanImageUrl(e.target.value))}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData.getData("text");
+                              if (pasted && pasted.startsWith("http")) {
+                                handleImportCover(pasted);
+                              }
+                            }}
+                            placeholder="Or paste image web URL..."
+                            className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
+                          />
+                          {coverImage && coverImage.startsWith("http") && !coverImage.includes("r2.dev") && (
+                            <button
+                              type="button"
+                              onClick={() => handleImportCover(coverImage)}
+                              disabled={isImportingCover}
+                              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition shrink-0 active:scale-95"
+                            >
+                              {isImportingCover ? "Importing..." : "Import"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1036,7 +1219,7 @@ export default function EditQuizPage() {
           <button
             type="button"
             disabled={activeQuestionIndex === 0}
-            onClick={() => setActiveQuestionIndex((prev) => Math.max(0, prev - 1))}
+            onClick={() => handleSelectQuestion(Math.max(0, activeQuestionIndex - 1))}
             className="px-3 py-2 bg-slate-100 disabled:opacity-30 text-slate-800 text-xs font-bold rounded-xl active:scale-95 border border-slate-200"
           >
             ◀
@@ -1047,7 +1230,7 @@ export default function EditQuizPage() {
           <button
             type="button"
             disabled={activeQuestionIndex === questions.length - 1}
-            onClick={() => setActiveQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
+            onClick={() => handleSelectQuestion(Math.min(questions.length - 1, activeQuestionIndex + 1))}
             className="px-3 py-2 bg-slate-100 disabled:opacity-30 text-slate-800 text-xs font-bold rounded-xl active:scale-95 border border-slate-200"
           >
             ▶

@@ -25,6 +25,9 @@ import {
   Award,
   Globe,
   Lock,
+  Shuffle,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 export type QuestionType =
@@ -51,8 +54,9 @@ interface QuestionForm {
   }>;
 }
 
-import { uploadImageFile } from "@/lib/upload";
+import { uploadImageFile, uploadImageUrl } from "@/lib/upload";
 import ImageCropperModal from "@/components/ImageCropperModal";
+import SafeImage from "@/components/SafeImage";
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 60, 90, 120];
 
@@ -71,6 +75,46 @@ export default function CreateQuizPage() {
   const [isPublic, setIsPublic] = useState(true);
   const [categories, setCategories] = useState<any[]>([]);
   const [error, setError] = useState("");
+  const [isImportingCover, setIsImportingCover] = useState(false);
+  const [isImportingQImage, setIsImportingQImage] = useState(false);
+
+  const cleanImageUrl = (raw: string) => {
+    let val = raw.trim().replace(/^["']|["']$/g, "");
+    try {
+      const u = new URL(val);
+      const imgParam = u.searchParams.get("imgurl");
+      if (imgParam) val = imgParam;
+    } catch (_) {}
+    return val;
+  };
+
+  const handleImportCover = async (rawUrl: string) => {
+    const cleaned = cleanImageUrl(rawUrl);
+    if (!cleaned.startsWith("http")) return;
+    setIsImportingCover(true);
+    try {
+      const permanentUrl = await uploadImageUrl(cleaned);
+      setCoverImage(permanentUrl);
+    } catch (e) {
+      console.warn("Import failed:", e);
+    } finally {
+      setIsImportingCover(false);
+    }
+  };
+
+  const handleImportQuestionImage = async (rawUrl: string) => {
+    const cleaned = cleanImageUrl(rawUrl);
+    if (!cleaned.startsWith("http")) return;
+    setIsImportingQImage(true);
+    try {
+      const permanentUrl = await uploadImageUrl(cleaned);
+      updateCurrentQuestion({ image: permanentUrl });
+    } catch (e) {
+      console.warn("Import failed:", e);
+    } finally {
+      setIsImportingQImage(false);
+    }
+  };
 
   // Settings (Step 3)
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
@@ -130,6 +174,10 @@ export default function CreateQuizPage() {
           if (parsed.categoryId) setCategoryId(parsed.categoryId);
           if (parsed.difficulty) setDifficulty(parsed.difficulty);
           if (parsed.isPublic !== undefined) setIsPublic(parsed.isPublic);
+          if (parsed.shuffleQuestions !== undefined) setShuffleQuestions(parsed.shuffleQuestions);
+          if (parsed.shuffleAnswers !== undefined) setShuffleAnswers(parsed.shuffleAnswers);
+          if (parsed.showLeaderboard !== undefined) setShowLeaderboard(parsed.showLeaderboard);
+          if (parsed.defaultTimeLimit !== undefined) setDefaultTimeLimit(parsed.defaultTimeLimit);
           if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
             setQuestions(parsed.questions);
           }
@@ -167,6 +215,10 @@ export default function CreateQuizPage() {
           categoryId,
           difficulty,
           isPublic,
+          shuffleQuestions,
+          shuffleAnswers,
+          showLeaderboard,
+          defaultTimeLimit,
           questions,
           savedAt: nowStr,
         };
@@ -179,7 +231,7 @@ export default function CreateQuizPage() {
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [title, description, coverImage, categoryId, difficulty, isPublic, questions, isInitialLoad]);
+  }, [title, description, coverImage, categoryId, difficulty, isPublic, shuffleQuestions, shuffleAnswers, showLeaderboard, defaultTimeLimit, questions, isInitialLoad]);
 
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingQImage, setIsUploadingQImage] = useState(false);
@@ -347,7 +399,35 @@ export default function CreateQuizPage() {
     });
   };
 
+  const validateCurrentQuestion = (idx = activeIdx) => {
+    const q = questions[idx];
+    if (!q) return true;
+    if (!q.text.trim()) {
+      setError(`Question #${idx + 1} prompt cannot be blank. Please enter a question prompt.`);
+      const promptInput = document.getElementById("question_prompt_input");
+      promptInput?.focus();
+      return false;
+    }
+    return true;
+  };
+
+  const handleSelectQuestion = (targetIdx: number) => {
+    if (targetIdx === activeIdx) return;
+    // When moving forward to a subsequent question, ensure current question is not blank
+    if (targetIdx > activeIdx) {
+      if (!validateCurrentQuestion()) {
+        return;
+      }
+    }
+    setError("");
+    setActiveIdx(targetIdx);
+  };
+
   const handleAddQuestion = () => {
+    if (!validateCurrentQuestion()) {
+      return;
+    }
+    setError("");
     const newQ: QuestionForm = {
       id: `q_${Date.now()}`,
       text: "",
@@ -417,6 +497,60 @@ export default function CreateQuizPage() {
     });
   };
 
+  const handleShuffleQuestions = () => {
+    if (questions.length <= 1) return;
+    setQuestions((prev) => {
+      const currentActiveQ = prev[activeIdx];
+      const shuffled = [...prev];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      if (currentActiveQ) {
+        const newIdx = shuffled.findIndex((q) => q.id === currentActiveQ.id);
+        if (newIdx !== -1) setActiveIdx(newIdx);
+      }
+      return shuffled;
+    });
+  };
+
+  const handleShuffleAnswers = () => {
+    setQuestions((prev) => {
+      return prev.map((q) => {
+        if (q.type === "TRUE_FALSE" || q.type === "ORDERING" || q.type === "TYPE_ANSWER") {
+          return q;
+        }
+        const shuffledAnswers = [...q.answers];
+        for (let i = shuffledAnswers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledAnswers[i], shuffledAnswers[j]] = [shuffledAnswers[j], shuffledAnswers[i]];
+        }
+        const colors = ["red", "blue", "yellow", "green"];
+        return {
+          ...q,
+          answers: shuffledAnswers.map((a, i) => ({
+            ...a,
+            order: i,
+            color: colors[i % colors.length],
+          })),
+        };
+      });
+    });
+  };
+
+  const handleMoveQuestion = (idx: number, direction: "UP" | "DOWN") => {
+    const targetIdx = direction === "UP" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= questions.length) return;
+
+    const copy = [...questions];
+    const temp = copy[idx];
+    copy[idx] = copy[targetIdx];
+    copy[targetIdx] = temp;
+
+    setQuestions(copy);
+    setActiveIdx(targetIdx);
+  };
+
   const handleSaveQuiz = async (andHost = false) => {
     setError("");
 
@@ -461,6 +595,35 @@ export default function CreateQuizPage() {
       }
     }
 
+    let payloadQuestions = [...questions];
+    if (shuffleQuestions && payloadQuestions.length > 1) {
+      for (let i = payloadQuestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [payloadQuestions[i], payloadQuestions[j]] = [payloadQuestions[j], payloadQuestions[i]];
+      }
+    }
+    if (shuffleAnswers) {
+      payloadQuestions = payloadQuestions.map((q) => {
+        if (q.type === "TRUE_FALSE" || q.type === "ORDERING" || q.type === "TYPE_ANSWER") {
+          return q;
+        }
+        const shuffledAnswers = [...q.answers];
+        for (let i = shuffledAnswers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledAnswers[i], shuffledAnswers[j]] = [shuffledAnswers[j], shuffledAnswers[i]];
+        }
+        const colors = ["red", "blue", "yellow", "green"];
+        return {
+          ...q,
+          answers: shuffledAnswers.map((a, i) => ({
+            ...a,
+            order: i,
+            color: colors[i % colors.length],
+          })),
+        };
+      });
+    }
+
     try {
       setIsSaving(true);
       const res = await fetch("/api/quizzes", {
@@ -473,7 +636,7 @@ export default function CreateQuizPage() {
           categoryId,
           difficulty,
           isPublic,
-          questions,
+          questions: payloadQuestions,
         }),
       });
 
@@ -551,7 +714,12 @@ export default function CreateQuizPage() {
             <button
               key={s.num}
               type="button"
-              onClick={() => setStep(s.num)}
+              onClick={() => {
+                if (step === 2 && s.num > 2) {
+                  if (!validateCurrentQuestion()) return;
+                }
+                setStep(s.num);
+              }}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition ${
                 step === s.num
                   ? "bg-indigo-50 text-indigo-700 font-black shadow-sm"
@@ -684,7 +852,7 @@ export default function CreateQuizPage() {
                 >
                   {coverImage ? (
                     <>
-                      <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
+                      <SafeImage src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-black">
                         Change Picture
                       </div>
@@ -720,13 +888,31 @@ export default function CreateQuizPage() {
 
                   <div className="space-y-1">
                     <span className="text-[11px] text-slate-400 font-bold block">Or paste an image web URL:</span>
-                    <input
-                      type="text"
-                      value={coverImage}
-                      onChange={(e) => setCoverImage(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={coverImage}
+                        onChange={(e) => setCoverImage(cleanImageUrl(e.target.value))}
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text");
+                          if (pasted && pasted.startsWith("http")) {
+                            handleImportCover(pasted);
+                          }
+                        }}
+                        placeholder="https://... (direct image link or webpage)"
+                        className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
+                      />
+                      {coverImage && coverImage.startsWith("http") && !coverImage.includes("r2.dev") && (
+                        <button
+                          type="button"
+                          onClick={() => handleImportCover(coverImage)}
+                          disabled={isImportingCover}
+                          className="px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition shrink-0 active:scale-95"
+                        >
+                          {isImportingCover ? "Importing..." : "Import"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -766,13 +952,24 @@ export default function CreateQuizPage() {
                   {getTypeBadge(currentQ.type)}
                 </span>
               </span>
-              <button
-                type="button"
-                onClick={handleAddQuestion}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Question
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleShuffleQuestions}
+                  disabled={questions.length <= 1}
+                  title="Shuffle question order"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-indigo-600" /> Shuffle
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Question
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -780,7 +977,7 @@ export default function CreateQuizPage() {
                 <button
                   key={q.id}
                   type="button"
-                  onClick={() => setActiveIdx(idx)}
+                  onClick={() => handleSelectQuestion(idx)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
                     activeIdx === idx
                       ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
@@ -804,13 +1001,24 @@ export default function CreateQuizPage() {
                   <h3 className="text-sm font-black text-slate-900">Questions</h3>
                   <p className="text-xs text-slate-400 font-semibold">{questions.length} Questions</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddQuestion}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm transition"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Question
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleShuffleQuestions}
+                    disabled={questions.length <= 1}
+                    title="Shuffle question order"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm transition"
+                  >
+                    <Shuffle className="w-3.5 h-3.5 text-indigo-600" /> Shuffle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddQuestion}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add
+                  </button>
+                </div>
               </div>
 
               {/* Questions sidebar list */}
@@ -818,22 +1026,48 @@ export default function CreateQuizPage() {
                 {questions.map((q, idx) => (
                   <div
                     key={q.id}
-                    onClick={() => setActiveIdx(idx)}
+                    onClick={() => handleSelectQuestion(idx)}
                     className={`p-3 rounded-xl border text-left cursor-pointer transition flex items-center justify-between ${
                       activeIdx === idx
                         ? "bg-indigo-50 border-indigo-500 text-indigo-950 font-bold shadow-sm"
                         : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <span className="text-xs font-black text-slate-400">{idx + 1}.</span>
-                      <span className="text-xs font-bold truncate max-w-[130px]">
+                    <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                      <span className="text-xs font-black text-slate-400 shrink-0">{idx + 1}.</span>
+                      <span className="text-xs font-bold truncate">
                         {q.text || `Question ${idx + 1}`}
                       </span>
                     </div>
-                    <span className="text-[10px] uppercase font-black px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">
-                      {getTypeBadge(q.type)}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveQuestion(idx, "UP");
+                        }}
+                        disabled={idx === 0}
+                        className="p-1 hover:text-slate-900 disabled:opacity-20 text-slate-400 rounded"
+                        title="Move Question Up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveQuestion(idx, "DOWN");
+                        }}
+                        disabled={idx === questions.length - 1}
+                        className="p-1 hover:text-slate-900 disabled:opacity-20 text-slate-400 rounded"
+                        title="Move Question Down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] uppercase font-black px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded ml-1">
+                        {getTypeBadge(q.type)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -842,7 +1076,10 @@ export default function CreateQuizPage() {
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => {
+                  if (!validateCurrentQuestion()) return;
+                  setStep(3);
+                }}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1"
               >
                 Settings ➔
@@ -874,77 +1111,37 @@ export default function CreateQuizPage() {
             {/* Question Prompt */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Question Prompt
+                Question Prompt <span className="text-rose-500">*</span>
               </label>
               <input
+                id="question_prompt_input"
                 type="text"
                 value={currentQ.text}
-                onChange={(e) => updateCurrentQuestion({ text: e.target.value })}
+                onChange={(e) => {
+                  setError("");
+                  updateCurrentQuestion({ text: e.target.value });
+                }}
                 placeholder="Type your question prompt here..."
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-base font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white transition ${
+                  error && !currentQ.text.trim()
+                    ? "border-rose-500 ring-2 ring-rose-200"
+                    : "border-slate-200 focus:border-indigo-600"
+                }`}
               />
+              {error && !currentQ.text.trim() && (
+                <p className="text-xs text-rose-600 font-bold mt-1.5 flex items-center gap-1 animate-fade-in">
+                  <AlertCircle className="w-3.5 h-3.5" /> Please enter a question prompt before moving to the next question.
+                </p>
+              )}
             </div>
 
-            {/* Question Media Image (Upload or URL) */}
-            <div className="space-y-2">
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
-                  Question Image (Optional)
-                </span>
-                {currentQ.image && (
-                  <button
-                    type="button"
-                    onClick={() => updateCurrentQuestion({ image: "" })}
-                    className="text-[11px] text-rose-600 font-bold hover:underline"
-                  >
-                    Remove Image
-                  </button>
-                )}
-              </label>
-
-              <input
-                type="file"
-                ref={qFileInputRef}
-                accept="image/*"
-                className="hidden"
-                onChange={handleQuestionImageUpload}
-              />
-
-              <div className="flex items-center gap-3">
-                {currentQ.image ? (
-                  <div className="w-20 h-16 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 relative group">
-                    <img src={currentQ.image} alt="Question" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => qFileInputRef.current?.click()}
-                      className="absolute inset-0 bg-black/40 text-white text-[10px] font-black opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : null}
-
-                <div className="flex-1 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                  <button
-                    type="button"
-                    onClick={() => qFileInputRef.current?.click()}
-                    disabled={isUploadingQImage}
-                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 transition flex-shrink-0 active:scale-95"
-                  >
-                    <ImageIcon className="w-4 h-4 text-indigo-600" />
-                    {isUploadingQImage ? "Uploading..." : "Upload from Device"}
-                  </button>
-                  <input
-                    type="text"
-                    value={currentQ.image || ""}
-                    onChange={(e) => updateCurrentQuestion({ image: e.target.value })}
-                    placeholder="Or paste image URL..."
-                    className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
-                  />
-                </div>
-              </div>
-            </div>
+            <input
+              type="file"
+              ref={qFileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleQuestionImageUpload}
+            />
 
             {/* Dynamic Question Body by Type */}
             {currentQ.type === "TRUE_FALSE" && (
@@ -1113,6 +1310,38 @@ export default function CreateQuizPage() {
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600 resize-none"
               />
             </div>
+
+            {/* Question Editor Bottom Navigation Bar */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                disabled={activeIdx === 0}
+                onClick={() => handleSelectQuestion(Math.max(0, activeIdx - 1))}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous Question
+              </button>
+
+              <div className="flex items-center gap-2">
+                {activeIdx < questions.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectQuestion(activeIdx + 1)}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    Next Question <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleAddQuestion}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" /> Add Next Question
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Question & Quick Settings (3 cols) */}
@@ -1154,6 +1383,76 @@ export default function CreateQuizPage() {
                 </select>
               </div>
 
+              {/* Question Media Image (Upload or URL) */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    Question Image (Optional)
+                  </span>
+                  {currentQ.image && (
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentQuestion({ image: "" })}
+                      className="text-[11px] text-rose-600 font-bold hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </label>
+
+                {currentQ.image ? (
+                  <div className="w-full h-28 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                    <SafeImage src={currentQ.image} alt="Question" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => qFileInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/40 text-white text-xs font-black opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
+                    >
+                      Change Image
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => qFileInputRef.current?.click()}
+                    disabled={isUploadingQImage}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    {isUploadingQImage ? "Uploading..." : "Upload from Device"}
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={currentQ.image || ""}
+                      onChange={(e) => updateCurrentQuestion({ image: cleanImageUrl(e.target.value) })}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData("text");
+                        if (pasted && pasted.startsWith("http")) {
+                          handleImportQuestionImage(pasted);
+                        }
+                      }}
+                      placeholder="Or paste image URL..."
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-600"
+                    />
+                    {currentQ.image && currentQ.image.startsWith("http") && !currentQ.image.includes("r2.dev") && (
+                      <button
+                        type="button"
+                        onClick={() => handleImportQuestionImage(currentQ.image!)}
+                        disabled={isImportingQImage}
+                        title="Import image to host permanently"
+                        className="px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition shrink-0 active:scale-95"
+                      >
+                        {isImportingQImage ? "..." : "Import"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Delete Question */}
               <button
                 type="button"
@@ -1171,7 +1470,7 @@ export default function CreateQuizPage() {
               <button
                 type="button"
                 disabled={activeIdx === 0}
-                onClick={() => setActiveIdx((prev) => Math.max(0, prev - 1))}
+                onClick={() => handleSelectQuestion(Math.max(0, activeIdx - 1))}
                 className="px-2.5 py-2 bg-slate-100 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-xl active:scale-95"
               >
                 ◀
@@ -1182,7 +1481,7 @@ export default function CreateQuizPage() {
               <button
                 type="button"
                 disabled={activeIdx === questions.length - 1}
-                onClick={() => setActiveIdx((prev) => Math.min(questions.length - 1, prev + 1))}
+                onClick={() => handleSelectQuestion(Math.min(questions.length - 1, activeIdx + 1))}
                 className="px-2.5 py-2 bg-slate-100 disabled:opacity-30 text-slate-700 text-xs font-bold rounded-xl active:scale-95"
               >
                 ▶
@@ -1199,7 +1498,10 @@ export default function CreateQuizPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => {
+                  if (!validateCurrentQuestion()) return;
+                  setStep(3);
+                }}
                 className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md active:scale-95 transition"
               >
                 Next ➔
@@ -1282,11 +1584,11 @@ export default function CreateQuizPage() {
                   <button
                     type="button"
                     onClick={() => setShowLeaderboard(!showLeaderboard)}
-                    className={`w-12 h-6 rounded-full transition relative ${showLeaderboard ? "bg-indigo-600" : "bg-slate-300"}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${showLeaderboard ? "bg-indigo-600" : "bg-slate-300"}`}
                   >
                     <span
-                      className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
-                        showLeaderboard ? "right-1" : "left-1"
+                      className={`w-4 h-4 rounded-full bg-white absolute top-1 left-1 transition-transform duration-200 ${
+                        showLeaderboard ? "translate-x-6" : "translate-x-0"
                       }`}
                     />
                   </button>
@@ -1299,31 +1601,62 @@ export default function CreateQuizPage() {
             <div className="space-y-3">
               <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Randomization & Anti-Cheating</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">Shuffle Question Order</span>
-                    <span className="text-[11px] text-slate-400">Randomize question sequence for each player</span>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">Shuffle Question Order</span>
+                      <span className="text-[11px] text-slate-400">Randomize question sequence</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextState = !shuffleQuestions;
+                        setShuffleQuestions(nextState);
+                        if (nextState && questions.length > 1) {
+                          handleShuffleQuestions();
+                        }
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${shuffleQuestions ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <span className={`w-4 h-4 rounded-full bg-white absolute top-1 left-1 transition-transform duration-200 ${shuffleQuestions ? "translate-x-6" : "translate-x-0"}`} />
+                    </button>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShuffleQuestions(!shuffleQuestions)}
-                    className={`w-12 h-6 rounded-full transition relative ${shuffleQuestions ? "bg-indigo-600" : "bg-slate-300"}`}
+                    onClick={handleShuffleQuestions}
+                    disabled={questions.length <= 1}
+                    className="w-full py-2 px-3 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
                   >
-                    <span className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${shuffleQuestions ? "right-1" : "left-1"}`} />
+                    <Shuffle className="w-3.5 h-3.5" /> Shuffle Questions Now ({questions.length})
                   </button>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">Shuffle Answer Choices</span>
-                    <span className="text-[11px] text-slate-400">Randomize A/B/C/D choices</span>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">Shuffle Answer Choices</span>
+                      <span className="text-[11px] text-slate-400">Randomize A/B/C/D choices</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextState = !shuffleAnswers;
+                        setShuffleAnswers(nextState);
+                        if (nextState) {
+                          handleShuffleAnswers();
+                        }
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${shuffleAnswers ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <span className={`w-4 h-4 rounded-full bg-white absolute top-1 left-1 transition-transform duration-200 ${shuffleAnswers ? "translate-x-6" : "translate-x-0"}`} />
+                    </button>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShuffleAnswers(!shuffleAnswers)}
-                    className={`w-12 h-6 rounded-full transition relative ${shuffleAnswers ? "bg-indigo-600" : "bg-slate-300"}`}
+                    onClick={handleShuffleAnswers}
+                    className="w-full py-2 px-3 bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
                   >
-                    <span className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${shuffleAnswers ? "right-1" : "left-1"}`} />
+                    <Shuffle className="w-3.5 h-3.5" /> Shuffle Answer Choices Now
                   </button>
                 </div>
               </div>
@@ -1357,7 +1690,7 @@ export default function CreateQuizPage() {
           {/* Header Summary Card */}
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="relative h-48 sm:h-56 w-full bg-slate-900">
-              <img
+              <SafeImage
                 src={coverImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60"}
                 alt={title}
                 className="w-full h-full object-cover"

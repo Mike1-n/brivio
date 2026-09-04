@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Play, Edit3, Copy, Trash2, BookOpen, Clock, Users } from "lucide-react";
+import SafeImage from "@/components/SafeImage";
 
 export default function MyQuizzesPage() {
   const router = useRouter();
@@ -189,7 +190,7 @@ export default function MyQuizzesPage() {
               className="bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col justify-between group shadow-sm hover:shadow-md transition-shadow duration-200"
             >
               <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
-                <img
+                <SafeImage
                   src={quiz.coverImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60"}
                   alt={quiz.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

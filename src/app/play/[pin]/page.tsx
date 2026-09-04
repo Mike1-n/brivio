@@ -6,6 +6,7 @@ import { Check, X, Rocket, Trophy, Play, ArrowRight, CheckCircle2, ChevronLeft }
 import confetti from "canvas-confetti";
 import { initSocket } from "@/lib/socket";
 import { soundEffects } from "@/lib/soundEffects";
+import SafeImage from "@/components/SafeImage";
 
 export default function PlayerGameControllerPage() {
   const params = useParams();
@@ -15,7 +16,7 @@ export default function PlayerGameControllerPage() {
   // Player state
   const [nickname, setNickname] = useState("Player");
   const [avatar, setAvatar] = useState("🦊");
-  const [gameState, setGameState] = useState<"LOBBY" | "PREVIEW" | "QUESTION" | "SUBMITTED" | "RESULTS" | "LEADERBOARD" | "PODIUM">("LOBBY");
+  const [gameState, setGameState] = useState<"LOBBY" | "PREVIEW" | "QUESTION" | "SUBMITTED" | "RESULTS" | "PODIUM">("LOBBY");
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(10);
@@ -38,6 +39,7 @@ export default function PlayerGameControllerPage() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   const socketRef = useRef<any>(null);
+  const playerIdRef = useRef<string>("");
   const startTimeRef = useRef<number>(Date.now());
   const currentQuestionRef = useRef<any>(null);
   const selectedAnswerIdRef = useRef<string | null>(null);
@@ -55,8 +57,17 @@ export default function PlayerGameControllerPage() {
   useEffect(() => {
     const savedNick = localStorage.getItem("quiz_player_nickname") || "Player";
     const savedAvatar = localStorage.getItem("quiz_player_avatar") || "🦊";
+    const savedPlayerId = localStorage.getItem(`quiz_player_id_${pin}`) || "";
+    const savedScore = Number(localStorage.getItem(`quiz_player_score_${pin}`) || 0);
+
     setNickname(savedNick);
     setAvatar(savedAvatar);
+    if (savedPlayerId) {
+      playerIdRef.current = savedPlayerId;
+    }
+    if (savedScore > 0) {
+      setScore(savedScore);
+    }
 
     const socket = initSocket();
     socketRef.current = socket;
@@ -64,26 +75,32 @@ export default function PlayerGameControllerPage() {
     const joinRoom = () => {
       socket.emit("player:join", {
         pin,
+        playerId: savedPlayerId || undefined,
         nickname: savedNick,
         avatar: savedAvatar,
       });
     };
 
+    socket.on("connect", joinRoom);
     if (socket.connected) {
       joinRoom();
-    } else {
-      socket.on("connect", joinRoom);
     }
 
     socket.on("player:joined", (data: any) => {
       setJoinError(null);
+      if (data.playerId) {
+        playerIdRef.current = data.playerId;
+        localStorage.setItem(`quiz_player_id_${pin}`, data.playerId);
+      }
       if (data.nickname) setNickname(data.nickname);
       if (data.avatar) setAvatar(data.avatar);
+      if (data.score !== undefined) {
+        setScore(data.score);
+        localStorage.setItem(`quiz_player_score_${pin}`, String(data.score));
+      }
       if (data.status === "QUESTION" || data.status === "PREVIEW") {
         // Will receive game:question right away
-      } else if (data.status === "LEADERBOARD") {
-        setGameState("LEADERBOARD");
-      } else if (data.status === "RESULTS") {
+      } else if (data.status === "LEADERBOARD" || data.status === "RESULTS") {
         setGameState("RESULTS");
       } else {
         setGameState("LOBBY");
@@ -183,7 +200,10 @@ export default function PlayerGameControllerPage() {
         correctAnswerText: data.correctAnswerText || data.explanation || "Correct Option",
         streak: data.streak,
       });
-      if (data.score !== undefined) setScore(data.score);
+      if (data.score !== undefined) {
+        setScore(data.score);
+        localStorage.setItem(`quiz_player_score_${pin}`, String(data.score));
+      }
       if (data.timeRemaining !== undefined) setTimeRemaining(data.timeRemaining);
       if (data.isCorrect) {
         soundEffects.playCorrect();
@@ -204,7 +224,10 @@ export default function PlayerGameControllerPage() {
         pointsBehind: data.pointsBehind,
         streak: data.streak,
       });
-      if (data.totalScore !== undefined) setScore(data.totalScore);
+      if (data.totalScore !== undefined) {
+        setScore(data.totalScore);
+        localStorage.setItem(`quiz_player_score_${pin}`, String(data.totalScore));
+      }
       if (data.rank !== undefined) setRank(data.rank);
       if (data.totalPlayers !== undefined) setTotalPlayers(data.totalPlayers);
     };
@@ -226,10 +249,8 @@ export default function PlayerGameControllerPage() {
     });
 
     socket.on("game:leaderboard", (data: any) => {
-      setGameState("LEADERBOARD");
+      // Keep player on results view - do not switch to round summary
       setLeaderboard(data.leaderboard || []);
-      const myIdx = (data.leaderboard || []).findIndex((p: any) => p.nickname === savedNick);
-      if (myIdx !== -1) setRank(myIdx + 1);
     });
 
     socket.on("game:podium", (data: any) => {
@@ -282,9 +303,12 @@ export default function PlayerGameControllerPage() {
     setGameState("SUBMITTED");
     soundEffects.playPop();
 
+    const pid = playerIdRef.current || `p_${socketRef.current?.id?.substring(0, 8)}`;
+
     socketRef.current?.emit("player:submit_answer", {
       pin,
-      playerId: `p_${socketRef.current?.id?.substring(0, 8)}`,
+      playerId: pid,
+      nickname,
       answerId: ans.id,
       responseTimeMs,
       ...extraData,
@@ -373,7 +397,7 @@ export default function PlayerGameControllerPage() {
           <div className="shrink-0 space-y-2 text-center my-auto py-2 px-1 max-h-[45%] overflow-hidden flex flex-col items-center justify-center">
             {currentQuestion.image && (
               <div className="max-h-24 sm:max-h-36 w-auto max-w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm mb-1">
-                <img src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-24 sm:max-h-36" />
+                <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-24 sm:max-h-36" />
               </div>
             )}
             <h2 className="text-base sm:text-xl font-black text-slate-900 leading-snug line-clamp-3">
@@ -424,7 +448,7 @@ export default function PlayerGameControllerPage() {
           {/* Center Image / Media Card */}
           <div className="w-full flex-1 max-h-[46%] min-h-[120px] bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden my-auto border border-white/30">
             {currentQuestion.image ? (
-              <img
+              <SafeImage
                 src={currentQuestion.image}
                 alt="Question illustration"
                 className="w-full h-full object-contain max-h-full rounded-xl"
@@ -711,23 +735,15 @@ export default function PlayerGameControllerPage() {
               </div>
             </div>
 
-            {/* Personalized Standing Breakdown Card */}
+            {/* Answer Streak & Encouragement Card */}
             <div className="w-full bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-3 text-center space-y-1">
-              {rank === 1 ? (
-                <p className="text-xs sm:text-sm font-black text-indigo-900">
-                  👑 1st Place! You are leading the arena!
-                </p>
-              ) : rank <= 3 ? (
-                <p className="text-xs sm:text-sm font-black text-indigo-900">
-                  🏆 You are on the podium! Position #{rank} of {totalPlayers}!
-                </p>
-              ) : lastResult.aheadPlayerName ? (
-                <p className="text-[11px] sm:text-xs font-bold text-indigo-900">
-                  📍 Position <span className="font-black text-indigo-700">#{rank}</span> • Only <span className="font-black text-amber-600">{lastResult.pointsBehind || 0} pts</span> behind <span className="font-black">{lastResult.aheadPlayerName}</span>! 🚀
+              {lastResult.streak && lastResult.streak > 1 ? (
+                <p className="text-xs sm:text-sm font-black text-amber-600 flex items-center justify-center gap-1.5">
+                  🔥 Answer Streak: {lastResult.streak} in a row!
                 </p>
               ) : (
-                <p className="text-xs font-bold text-indigo-900">
-                  📍 Position <span className="font-black text-indigo-700">#{rank}</span> of {totalPlayers} players!
+                <p className="text-xs sm:text-sm font-bold text-indigo-900">
+                  ⚡ Total Score: <span className="font-black text-indigo-700 font-mono">{score.toLocaleString()} pts</span>
                 </p>
               )}
             </div>
@@ -741,48 +757,7 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
 
-      {/* 6. PLAYER LEADERBOARD SCREEN */}
-      {gameState === "LEADERBOARD" && (
-        <div className="h-full flex-1 flex flex-col justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 text-white shadow-2xl overflow-hidden space-y-3">
-          <div className="space-y-3">
-            <div className="text-center border-b border-indigo-400/30 pb-2">
-              <span className="text-[11px] sm:text-xs font-black text-indigo-200 uppercase tracking-wider">
-                Question {questionIndex + 1} of {totalQuestions}
-              </span>
-              <h2 className="text-lg sm:text-xl font-black mt-0.5">Arena Leaderboard 🏆</h2>
-            </div>
-
-            {/* Standings list with current player highlighted */}
-            <div className="space-y-1.5">
-              {leaderboard.slice(0, 5).map((p, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2.5 px-3 rounded-xl flex items-center justify-between text-xs font-bold ${
-                    p.nickname === nickname
-                      ? "bg-white text-indigo-900 ring-2 ring-amber-300 font-black shadow-md"
-                      : "bg-indigo-900/40 text-white"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-5">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}.`}</span>
-                    <span className="truncate max-w-[120px]">{p.nickname}</span>
-                  </span>
-                  <span className="font-mono">{p.score?.toLocaleString()} pts</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom Rank Banner */}
-          <div className="shrink-0 bg-[#4338CA] border border-indigo-400/40 rounded-xl p-3 text-center space-y-0.5">
-            <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Current Rank</span>
-            <span className="text-xl font-black text-amber-300 font-mono">Position #{rank} of {totalPlayers}</span>
-            <p className="text-[11px] text-indigo-200">Get ready for the next round! 🚀</p>
-          </div>
-        </div>
-      )}
-
-      {/* 7. PLAYER FINAL RESULTS (SINGLE UNIFIED CARD) */}
+      {/* 6. PLAYER FINAL RESULTS (RANK-FREE CELEBRATION VIEW) */}
       {gameState === "PODIUM" && (
         <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-2xl text-center overflow-hidden animate-fade-in space-y-3">
           {/* Header */}
@@ -793,30 +768,26 @@ export default function PlayerGameControllerPage() {
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Final Results 🏆</h1>
           </div>
 
-          {/* Single Unified Champion / Rank & Score Section */}
+          {/* Single Unified Champion / Score Section */}
           <div className="flex flex-col items-center space-y-3 my-auto py-1">
-            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white/15 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-4xl shadow-2xl">
-              {rank === 1 ? "👑" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "🎉"}
+            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white/15 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-4xl shadow-2xl animate-bounce">
+              🎉
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <h2 className="text-xl sm:text-2xl font-black">
-                {rank === 1
-                  ? "Champion! 1st Place! 🔥"
-                  : rank <= 3
-                  ? `Podium Finish! Rank #${rank} 🏆`
-                  : `Rank #${rank} of ${totalPlayers} Players`}
+                Great Game, {nickname}! 🌟
               </h2>
               <p className="text-xs sm:text-sm font-semibold text-indigo-200">
-                {nickname} • Great effort in the arena!
+                Check the host screen for the final champion podium! 🏆
               </p>
             </div>
 
-            <div className="px-5 py-2.5 rounded-xl bg-indigo-900/60 border border-indigo-400/30 shadow-inner flex items-center gap-2.5">
+            <div className="px-6 py-3 rounded-xl bg-indigo-900/60 border border-indigo-400/30 shadow-inner flex items-center gap-2.5">
               <span className="text-xs font-black uppercase tracking-wider text-indigo-200">
-                Final Score:
+                Your Final Score:
               </span>
-              <span className="font-mono text-xl font-black text-amber-300">
+              <span className="font-mono text-xl sm:text-2xl font-black text-amber-300">
                 {score.toLocaleString()} pts
               </span>
             </div>

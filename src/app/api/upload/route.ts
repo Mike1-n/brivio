@@ -39,18 +39,101 @@ export async function POST(req: NextRequest) {
       }
     } else {
       const body = await req.json();
-      const { data } = body;
-      if (!data) {
-        return NextResponse.json({ error: "No image data provided" }, { status: 400 });
-      }
+      const { data, url } = body;
 
-      const matches = data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-      if (matches) {
-        extension = matches[1] === "jpeg" ? "jpg" : matches[1];
-        mimeType = `image/${matches[1]}`;
-        buffer = Buffer.from(matches[2], "base64");
+      if (url && typeof url === "string" && url.startsWith("http")) {
+        let cleanUrl = url.trim();
+
+        // Check if user pasted a Google Images search URL containing imgurl parameter
+        try {
+          const parsed = new URL(cleanUrl);
+          const imgParam = parsed.searchParams.get("imgurl");
+          if (imgParam) {
+            cleanUrl = imgParam;
+          }
+        } catch (_) {}
+
+        const remoteRes = await fetch(cleanUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          },
+          redirect: "follow",
+        });
+
+        if (!remoteRes.ok) {
+          return NextResponse.json(
+            { error: `Remote image returned error status (${remoteRes.status})` },
+            { status: 400 }
+          );
+        }
+
+        let fetchedContentType = remoteRes.headers.get("content-type") || "image/jpeg";
+
+        // If webpage URL, attempt to extract og:image
+        if (fetchedContentType.includes("text/html")) {
+          const htmlText = await remoteRes.text();
+          const ogMatch =
+            htmlText.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
+            htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i) ||
+            htmlText.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+
+          if (ogMatch && ogMatch[1]) {
+            let ogUrl = ogMatch[1];
+            if (ogUrl.startsWith("/")) {
+              const origin = new URL(cleanUrl).origin;
+              ogUrl = `${origin}${ogUrl}`;
+            }
+            const secondRes = await fetch(ogUrl, {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                Accept: "image/*,*/*",
+              },
+            });
+            if (secondRes.ok) {
+              const imgBuf = await secondRes.arrayBuffer();
+              buffer = Buffer.from(imgBuf);
+              fetchedContentType = secondRes.headers.get("content-type") || "image/jpeg";
+            } else {
+              return NextResponse.json({ error: "The provided link is a web page, not an image" }, { status: 400 });
+            }
+          } else {
+            return NextResponse.json({ error: "The provided link is a web page, not an image" }, { status: 400 });
+          }
+        } else {
+          const imgBuf = await remoteRes.arrayBuffer();
+          buffer = Buffer.from(imgBuf);
+        }
+
+        if (fetchedContentType.includes("png")) {
+          extension = "png";
+          mimeType = "image/png";
+        } else if (fetchedContentType.includes("webp")) {
+          extension = "webp";
+          mimeType = "image/webp";
+        } else if (fetchedContentType.includes("gif")) {
+          extension = "gif";
+          mimeType = "image/gif";
+        } else if (fetchedContentType.includes("svg")) {
+          extension = "svg";
+          mimeType = "image/svg+xml";
+        } else {
+          extension = "jpg";
+          mimeType = "image/jpeg";
+        }
+      } else if (data) {
+        const matches = data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+        if (matches) {
+          extension = matches[1] === "jpeg" ? "jpg" : matches[1];
+          mimeType = `image/${matches[1]}`;
+          buffer = Buffer.from(matches[2], "base64");
+        } else {
+          buffer = Buffer.from(data, "base64");
+        }
       } else {
-        buffer = Buffer.from(data, "base64");
+        return NextResponse.json({ error: "No image data or URL provided" }, { status: 400 });
       }
     }
 

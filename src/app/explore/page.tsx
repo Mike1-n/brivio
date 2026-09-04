@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Play, Copy, BookOpen, Clock, Award, Filter, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import SafeImage from "@/components/SafeImage";
 
 export default function ExplorePage() {
   const router = useRouter();
@@ -197,7 +198,7 @@ export default function ExplorePage() {
             >
               {/* Cover Image */}
               <div className="relative h-48 w-full bg-slate-900 overflow-hidden">
-                <img
+                <SafeImage
                   src={quiz.coverImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60"}
                   alt={quiz.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
