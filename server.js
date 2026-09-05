@@ -393,7 +393,7 @@ app.prepare().then(() => {
         socket.emit("player:join_error", { message: "This game session has ended." });
         return;
       }
-      const cleanNick = (data.nickname || "Player").trim().substring(0, 18);
+      const cleanNick = (data.nickname || "").trim().substring(0, 18);
 
       let existingPlayer = null;
       if (data.playerId && room.players.has(data.playerId)) {
@@ -402,6 +402,11 @@ app.prepare().then(() => {
         existingPlayer = Array.from(room.players.values()).find(
           (p) => !p.isBot && p.nickname.toLowerCase() === cleanNick.toLowerCase()
         );
+      }
+
+      if (!existingPlayer && cleanNick.length < 3) {
+        socket.emit("player:join_error", { message: "Nickname must be at least 3 letters." });
+        return;
       }
 
       let playerId;
@@ -587,7 +592,7 @@ app.prepare().then(() => {
         room.answersDistribution[data.answerId] = (room.answersDistribution[data.answerId] || 0) + 1;
       }
 
-      const correctAnswerObj = currQ.answers.find((a) => a.isCorrect);
+      const correctAnswerText = getQuestionCorrectAnswerText(currQ);
 
       socket.emit("player:answer_feedback", {
         hasAnswered: true,
@@ -595,7 +600,7 @@ app.prepare().then(() => {
         pointsAwarded: scoreResult.points,
         streak: player.streak,
         score: player.score,
-        correctAnswerText: correctAnswerObj ? correctAnswerObj.text : (currQ.explanation || "Correct Option"),
+        correctAnswerText,
         explanation: currQ.explanation,
         timeRemaining: Math.max(room.timeRemaining, 0),
       });
@@ -645,6 +650,23 @@ app.prepare().then(() => {
     console.log(`> 🚀 QuizArena Server ready on http://${hostname}:${port}`);
   });
 });
+
+function getQuestionCorrectAnswerText(currQ) {
+  if (!currQ) return "";
+  if (currQ.type === "TYPE_ANSWER") {
+    return currQ.answers?.[0]?.text || "";
+  }
+  if (currQ.type === "MULTI_SELECT") {
+    const correct = currQ.answers?.filter((a) => a.isCorrect) || [];
+    return correct.map((a) => a.text).join(", ");
+  }
+  if (currQ.type === "ORDERING") {
+    const sorted = [...(currQ.answers || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    return sorted.map((a) => a.text).join(" → ");
+  }
+  const correctObj = currQ.answers?.find((a) => a.isCorrect);
+  return correctObj ? correctObj.text : (currQ.explanation || "");
+}
 
 function broadcastPlayerList(io, room) {
   if (room.broadcastTimeout) {
@@ -908,7 +930,7 @@ function lockAnswers(io, room) {
         totalPlayers: sortedList.length,
         aheadPlayerName: aheadPlayer ? aheadPlayer.nickname : null,
         pointsBehind: pointsBehind,
-        correctAnswerText: correctAnswerObj ? correctAnswerObj.text : (currQ.explanation || "Correct Option"),
+        correctAnswerText: getQuestionCorrectAnswerText(currQ),
         explanation: currQ.explanation,
       };
 

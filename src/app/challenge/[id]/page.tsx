@@ -19,8 +19,9 @@ export default function ChallengeGamePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Game Flow: "ENTRY" | "PLAYING" | "FEEDBACK" | "FINISHED"
-  const [stage, setStage] = useState<"ENTRY" | "PLAYING" | "FEEDBACK" | "FINISHED">("ENTRY");
+  // Game Flow: "ENTRY" | "PREVIEW" | "PLAYING" | "FEEDBACK" | "FINISHED"
+  const [stage, setStage] = useState<"ENTRY" | "PREVIEW" | "PLAYING" | "FEEDBACK" | "FINISHED">("ENTRY");
+  const [previewSeconds, setPreviewSeconds] = useState(5);
   const [nickname, setNickname] = useState("");
   const [avatar, setAvatar] = useState("🦊");
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -38,6 +39,7 @@ export default function ChallengeGamePage() {
 
   const startTimeRef = useRef<number>(Date.now());
   const timerRef = useRef<any>(null);
+  const previewTimerRef = useRef<any>(null);
 
   useEffect(() => {
     fetch(`/api/challenges/${challengeId}`)
@@ -93,6 +95,28 @@ export default function ChallengeGamePage() {
     return () => clearInterval(interval);
   }, [challenge]);
 
+  // 5-Second Question Preview Timer before revealing answers
+  useEffect(() => {
+    if (stage === "PREVIEW" && challenge?.quiz?.questions?.[currentQIndex] && !isExpiredLive) {
+      setPreviewSeconds(5);
+      previewTimerRef.current = setInterval(() => {
+        setPreviewSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(previewTimerRef.current);
+            soundEffects.playPop();
+            setStage("PLAYING");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        if (previewTimerRef.current) clearInterval(previewTimerRef.current);
+      };
+    }
+  }, [stage, currentQIndex, challenge, isExpiredLive]);
+
   // Question Timer
   useEffect(() => {
     if (stage === "PLAYING" && challenge?.quiz?.questions?.[currentQIndex] && !isExpiredLive) {
@@ -117,6 +141,97 @@ export default function ChallengeGamePage() {
     }
   }, [stage, currentQIndex, challenge, isExpiredLive]);
 
+  // LocalStorage Session Persistence
+  const [savedSession, setSavedSession] = useState<{
+    nickname: string;
+    avatar: string;
+    currentQIndex: number;
+    score: number;
+    streak: number;
+    answersRecorded: any[];
+    savedAt: number;
+  } | null>(null);
+
+  // Check and load saved in-progress session
+  useEffect(() => {
+    if (typeof window !== "undefined" && challengeId) {
+      try {
+        const raw = localStorage.getItem(`quizarena_challenge_session_${challengeId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.nickname && typeof parsed.currentQIndex === "number") {
+            const alreadyCompleted = challenge?.attempts?.some(
+              (a: any) => a.nickname.toLowerCase() === parsed.nickname.trim().toLowerCase()
+            );
+            if (alreadyCompleted) {
+              localStorage.removeItem(`quizarena_challenge_session_${challengeId}`);
+              setSavedSession(null);
+            } else {
+              setSavedSession(parsed);
+              if (!nickname) setNickname(parsed.nickname);
+              if (parsed.avatar) setAvatar(parsed.avatar);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load saved challenge session", e);
+      }
+    }
+  }, [challengeId, challenge]);
+
+  // Helper to persist session to LocalStorage
+  const persistSession = (data: {
+    nickname: string;
+    avatar: string;
+    currentQIndex: number;
+    score: number;
+    streak: number;
+    answersRecorded: any[];
+  }) => {
+    if (typeof window !== "undefined" && challengeId) {
+      try {
+        localStorage.setItem(
+          `quizarena_challenge_session_${challengeId}`,
+          JSON.stringify({
+            ...data,
+            savedAt: Date.now(),
+          })
+        );
+      } catch (e) {
+        console.error("Failed to save progress", e);
+      }
+    }
+  };
+
+  const clearSavedSession = () => {
+    if (typeof window !== "undefined" && challengeId) {
+      localStorage.removeItem(`quizarena_challenge_session_${challengeId}`);
+    }
+    setSavedSession(null);
+  };
+
+  const handleResumeChallenge = () => {
+    if (!savedSession || !challenge) return;
+    if (isExpiredLive || challenge?.isExpired || (challenge?.deadline && Date.now() >= new Date(challenge.deadline).getTime())) {
+      setIsExpiredLive(true);
+      setError("This quiz challenge has expired.");
+      return;
+    }
+
+    soundEffects.init();
+    setNickname(savedSession.nickname);
+    setAvatar(savedSession.avatar || "🦊");
+    setCurrentQIndex(savedSession.currentQIndex);
+    setScore(savedSession.score || 0);
+    setStreak(savedSession.streak || 0);
+    setAnswersRecorded(savedSession.answersRecorded || []);
+    setSelectedAnswerId(null);
+    setSelectedAnswerIds([]);
+    setOrderingSequence([]);
+    setPreviewSeconds(5);
+    setStage("PREVIEW");
+  };
+
   const [selectedAnswerIds, setSelectedAnswerIds] = useState<string[]>([]);
   const [orderingSequence, setOrderingSequence] = useState<string[]>([]);
   const submittingRef = useRef<boolean>(false);
@@ -134,6 +249,10 @@ export default function ChallengeGamePage() {
       setError("Please enter a nickname.");
       return;
     }
+    if (cleanNick.length < 3) {
+      setError("Nickname must be at least 3 characters.");
+      return;
+    }
 
     const alreadyTaken = challenge?.attempts?.some(
       (a: any) => a.nickname.toLowerCase() === cleanNick.toLowerCase()
@@ -145,11 +264,24 @@ export default function ChallengeGamePage() {
 
     setError("");
     soundEffects.init();
-    setStage("PLAYING");
     setCurrentQIndex(0);
     setScore(0);
     setStreak(0);
     setAnswersRecorded([]);
+    setSelectedAnswerId(null);
+    setSelectedAnswerIds([]);
+    setOrderingSequence([]);
+    setPreviewSeconds(5);
+    setStage("PREVIEW");
+
+    persistSession({
+      nickname: cleanNick,
+      avatar,
+      currentQIndex: 0,
+      score: 0,
+      streak: 0,
+      answersRecorded: [],
+    });
   };
 
   const toggleMultiSelectId = (id: string) => {
@@ -172,6 +304,58 @@ export default function ChallengeGamePage() {
     const currentQ = challenge.quiz.questions[currentQIndex];
     setSelectedAnswerId(ans.id);
 
+    // Verify correctness
+    let isCorrect = false;
+    let correctAnswerText = "";
+    if (currentQ.type === "TYPE_ANSWER") {
+      const textAnswer = (extraData.textAnswer || "").trim().toLowerCase();
+      const accepted = (currentQ.answers[0]?.text || "").trim().toLowerCase();
+      isCorrect = textAnswer.length > 0 && textAnswer === accepted;
+      correctAnswerText = currentQ.answers[0]?.text || "";
+    } else if (currentQ.type === "MULTI_SELECT") {
+      const selectedIds = Array.isArray(extraData.answerIds) ? extraData.answerIds.map(String) : [];
+      const correctAnswers = currentQ.answers.filter((a: any) => a.isCorrect);
+      const correctIds = correctAnswers.map((a: any) => String(a.id));
+      isCorrect = correctIds.length > 0 &&
+        correctIds.every((id: string) => selectedIds.includes(id)) &&
+        selectedIds.every((id: string) => correctIds.includes(id));
+      correctAnswerText = correctAnswers.map((a: any) => a.text).join(", ");
+    } else if (currentQ.type === "ORDERING") {
+      const orderIds = Array.isArray(extraData.answerIds) ? extraData.answerIds.map(String) : [];
+      const sorted = [...currentQ.answers].sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      const correctOrderedIds = sorted.map((a: any) => String(a.id));
+      isCorrect = orderIds.length > 0 && JSON.stringify(orderIds) === JSON.stringify(correctOrderedIds);
+      correctAnswerText = sorted.map((a: any) => a.text).join(" → ");
+    } else if (currentQ.type === "POLL") {
+      isCorrect = true;
+      correctAnswerText = ans.text;
+    } else {
+      const chosenAnswer = currentQ.answers.find((a: any) => String(a.id) === String(ans.id));
+      isCorrect = chosenAnswer ? Boolean(chosenAnswer.isCorrect) : false;
+      const correctAns = currentQ.answers.find((a: any) => a.isCorrect);
+      correctAnswerText = correctAns ? correctAns.text : (currentQ.explanation || "");
+    }
+
+    // Calculate question score and streak bonus
+    let earnedPoints = 0;
+    let newStreak = 0;
+    if (isCorrect) {
+      newStreak = streak + 1;
+      const streakMultiplier = 1 + Math.min(newStreak - 1, 3) * 0.1;
+      const timeLimitMs = (currentQ.timeLimit || 20) * 1000;
+      const cappedResponseTime = Math.min(responseTimeMs, timeLimitMs);
+      const speedFactor = 1 - (cappedResponseTime / (timeLimitMs * 2));
+      earnedPoints = Math.round((currentQ.points || 1000) * speedFactor * streakMultiplier);
+      soundEffects.playCorrect();
+    } else {
+      newStreak = 0;
+      soundEffects.playIncorrect();
+    }
+
+    const newScore = score + earnedPoints;
+    setScore(newScore);
+    setStreak(newStreak);
+
     // Save answer
     const newAnswers = [
       ...answersRecorded,
@@ -184,11 +368,22 @@ export default function ChallengeGamePage() {
     ];
     setAnswersRecorded(newAnswers);
 
-    // Provide instant feedback
-    soundEffects.playPop();
+    // Persist progress immediately
+    persistSession({
+      nickname: nickname.trim(),
+      avatar,
+      currentQIndex,
+      score: newScore,
+      streak: newStreak,
+      answersRecorded: newAnswers,
+    });
+
     setStage("FEEDBACK");
     setLastQuestionResult({
+      isCorrect,
       selectedText: extraData.textAnswer || ans.text,
+      correctAnswerText,
+      timedOut: false,
     });
   };
 
@@ -203,19 +398,48 @@ export default function ChallengeGamePage() {
       },
     ];
     setAnswersRecorded(newAnswers);
+    setStreak(0);
     soundEffects.playIncorrect();
+
+    persistSession({
+      nickname: nickname.trim(),
+      avatar,
+      currentQIndex,
+      score,
+      streak: 0,
+      answersRecorded: newAnswers,
+    });
+
+    const correctAns = currentQ.answers.find((a: any) => a.isCorrect);
+    const correctAnswerText = correctAns ? correctAns.text : (currentQ.explanation || "");
     setStage("FEEDBACK");
     setLastQuestionResult({
+      isCorrect: false,
       selectedText: "Time Ran Out",
+      correctAnswerText,
+      timedOut: true,
     });
   };
 
   const handleNextQuestion = () => {
     if (isSubmitting || submittingRef.current) return;
     setSelectedAnswerId(null);
+    setSelectedAnswerIds([]);
+    setOrderingSequence([]);
     if (currentQIndex + 1 < challenge.quiz.questions.length) {
-      setCurrentQIndex((prev) => prev + 1);
-      setStage("PLAYING");
+      const nextIndex = currentQIndex + 1;
+      setCurrentQIndex(nextIndex);
+      setPreviewSeconds(5);
+      setStage("PREVIEW");
+
+      persistSession({
+        nickname: nickname.trim(),
+        avatar,
+        currentQIndex: nextIndex,
+        score,
+        streak,
+        answersRecorded,
+      });
     } else {
       handleSubmitFinal();
     }
@@ -245,6 +469,7 @@ export default function ChallengeGamePage() {
 
       setFinalResult(data);
       setStage("FINISHED");
+      clearSavedSession();
       soundEffects.playPodiumFanfare();
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
     } catch (err) {
@@ -288,7 +513,9 @@ export default function ChallengeGamePage() {
   const currentQ = challenge?.quiz?.questions?.[currentQIndex];
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-[#0B0E23] flex flex-col justify-center items-center p-2.5 sm:p-4 font-sans text-white overflow-hidden">
+    <div className={`h-[100dvh] max-h-[100dvh] ${
+      stage === "PLAYING" || stage === "PREVIEW" ? "bg-[#46178F]" : "bg-[#0B0E23]"
+    } flex flex-col justify-center items-center p-2.5 sm:p-4 font-sans text-white overflow-hidden`}>
       {/* 0. EXPIRED / CLOSED CHALLENGE VIEW (EXPIRES AT EXACT SECOND) */}
       {isChallengeExpired && stage !== "FINISHED" && (
         <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-6 text-center animate-fade-in">
@@ -385,23 +612,86 @@ export default function ChallengeGamePage() {
             )}
           </div>
 
+          {/* RESUME IN-PROGRESS CHALLENGE CARD */}
+          {savedSession && savedSession.currentQIndex < (challenge.quiz?.questions?.length || 0) && (
+            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-2xl p-4 text-slate-900 space-y-3 shadow-md animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl shadow-md">
+                    {savedSession.avatar || "🦊"}
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-black text-slate-900 leading-tight">
+                      Welcome back, {savedSession.nickname}!
+                    </h3>
+                    <p className="text-[11px] font-semibold text-slate-500">
+                      Continue from where you left off
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 bg-amber-100 text-amber-900 font-extrabold text-[10px] rounded-full uppercase tracking-wider border border-amber-200">
+                  In Progress
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-white/90 rounded-xl p-2.5 border border-indigo-100 text-center text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Next Question</span>
+                  <span className="font-black text-indigo-600">
+                    Q {savedSession.currentQIndex + 1} of {challenge.quiz?.questions?.length || 0}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Current Score</span>
+                  <span className="font-mono font-black text-emerald-600">
+                    {savedSession.score?.toLocaleString()} pts
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleResumeChallenge}
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  Resume Question {savedSession.currentQIndex + 1}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSavedSession}
+                  title="Start over from Question 1"
+                  className="px-3 py-3 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1 border border-slate-200 shadow-sm"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Start Over</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleStartChallenge} className="space-y-5">
             {/* Nickname Input with Uniqueness Notice */}
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Choose Unique Nickname
+                Choose Unique Nickname <span className="text-indigo-600 font-bold text-[10px]">(min 3 chars)</span>
               </label>
               <input
                 type="text"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  if (error) setError("");
+                }}
                 placeholder="e.g. LionKing_23"
+                minLength={3}
                 maxLength={18}
                 required
                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:bg-white focus:outline-none transition text-sm"
               />
               <span className="text-[11px] text-slate-400 block">
-                Must not be taken by another player in this challenge.
+                Must be at least 3 characters and not taken by another player.
               </span>
             </div>
 
@@ -461,39 +751,175 @@ export default function ChallengeGamePage() {
         </div>
       )}
 
-      {/* 2. PLAYING QUESTION SCREEN */}
-      {stage === "PLAYING" && currentQ && (
-        <div className="h-full flex-1 flex flex-col w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-slate-900 shadow-2xl overflow-hidden justify-between animate-fade-in">
-          {/* Top Bar: Question N of Total | Timer */}
-          <div className="shrink-0 flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-[11px] sm:text-xs font-black text-slate-500 uppercase tracking-wider">
-              Question {currentQIndex + 1} of {challenge.quiz.questions.length}
-            </span>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-indigo-600 flex items-center justify-center font-black text-indigo-700 text-xs sm:text-sm bg-indigo-50 shadow-inner">
-              {timeRemaining}s
+      {/* 2. PREVIEW PHASE (5 SECONDS QUESTION READ-IN BEFORE ANSWERS REVEAL) */}
+      {stage === "PREVIEW" && currentQ && (
+        <div className="h-full flex-1 flex flex-col justify-between w-full max-w-md mx-auto space-y-1.5 sm:space-y-2 animate-fade-in overflow-hidden">
+          {/* Top Bar: Question Number Circle + Quiz Badge */}
+          <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
+              {currentQIndex + 1}
+            </div>
+
+            <div className="px-3.5 py-1 bg-white/95 text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
+              <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+                <span className="bg-[#E21B3C] rounded-[1px]" />
+                <span className="bg-[#1368CE] rounded-[1px]" />
+                <span className="bg-[#D89E00] rounded-[1px]" />
+                <span className="bg-[#26890C] rounded-[1px]" />
+              </div>
+              <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
+            </div>
+
+            <div className="px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-sm">
+              Get Ready!
             </div>
           </div>
 
-          {/* Question Prompt + Optional Media */}
-          <div className="shrink-0 flex flex-col items-center justify-center text-center my-auto py-1 sm:py-2 px-1 max-h-[30%] overflow-hidden">
-            {currentQ.image && (
-              <div className="max-h-20 sm:max-h-28 w-auto max-w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm mb-1">
-                <SafeImage src={currentQ.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-28" />
+          {/* Center Image / Media Card with Left Floating Countdown Badge */}
+          <div className="relative w-full flex-1 max-h-[46%] min-h-[130px] flex items-center justify-center my-auto">
+            {/* Left Floating Circular Countdown Timer */}
+            <div className="absolute left-0 sm:left-1 z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-2xl shrink-0 animate-pulse">
+              {previewSeconds}
+            </div>
+
+            {/* Center Image Card */}
+            <div className="w-full max-w-[82%] h-full bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
+              {currentQ.image ? (
+                <SafeImage
+                  src={currentQ.image}
+                  alt="Question illustration"
+                  className="w-full h-full object-contain max-h-full rounded-xl"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                    <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
+                    <span className="bg-[#1368CE] rounded-lg shadow-sm" />
+                    <span className="bg-[#D89E00] rounded-lg shadow-sm" />
+                    <span className="bg-[#26890C] rounded-lg shadow-sm" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Question Text Banner */}
+          <div className="shrink-0 w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2 sm:py-2.5 px-3.5 rounded-xl shadow-md border border-white/50 max-h-28 overflow-y-auto">
+            <h2 className={`font-black leading-snug break-words text-slate-900 ${
+              (currentQ.text || "").length > 100
+                ? "text-[11px] sm:text-xs"
+                : (currentQ.text || "").length > 50
+                ? "text-xs sm:text-sm"
+                : "text-xs sm:text-sm md:text-base"
+            }`}>
+              {currentQ.text}
+            </h2>
+          </div>
+
+          {/* Locked Answers Placeholder */}
+          <div className="shrink-0 w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-center text-xs sm:text-sm font-bold text-purple-200 flex items-center justify-center gap-2 shadow-inner">
+            <span className="text-base">🔒</span>
+            <span>Options revealing in <strong className="text-amber-300 font-black font-mono text-sm">{previewSeconds}s</strong>...</span>
+          </div>
+
+          {/* Bottom Player Status Bar: Avatar + Nickname + Score Badge */}
+          <div className="shrink-0 w-full flex items-center justify-between pt-1 border-t border-purple-400/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl sm:text-2xl shadow-md">
+                {avatar}
               </div>
-            )}
-            <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-900 leading-snug line-clamp-3">
+              <div className="flex flex-col text-left">
+                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[140px] truncate">
+                  {nickname}
+                </span>
+                <span className="inline-block bg-[#3B1278] border border-purple-400/40 text-white font-mono font-black text-[11px] px-2 py-0.5 rounded-md mt-0.5 w-fit">
+                  {score}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200/80">
+                Q {currentQIndex + 1}/{challenge.quiz.questions.length}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. PLAYING QUESTION SCREEN */}
+      {stage === "PLAYING" && currentQ && (
+        <div className="h-full flex-1 flex flex-col justify-between w-full max-w-md mx-auto space-y-1.5 sm:space-y-2 animate-fade-in overflow-hidden">
+          {/* Top Bar: Question Number Circle + Quiz Badge */}
+          <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
+              {currentQIndex + 1}
+            </div>
+
+            <div className="px-3.5 py-1 bg-white/95 text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
+              <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+                <span className="bg-[#E21B3C] rounded-[1px]" />
+                <span className="bg-[#1368CE] rounded-[1px]" />
+                <span className="bg-[#D89E00] rounded-[1px]" />
+                <span className="bg-[#26890C] rounded-[1px]" />
+              </div>
+              <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
+            </div>
+
+            <div className="w-8 sm:w-9" /> {/* Spacer */}
+          </div>
+
+          {/* Center Image / Media Card with Left Floating Circular Timer */}
+          <div className="relative w-full flex-1 max-h-[46%] min-h-[130px] flex items-center justify-center my-auto">
+            {/* Floating circular countdown timer on the left */}
+            <div className="absolute left-0 sm:left-1 z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-2xl shrink-0">
+              {timeRemaining}
+            </div>
+
+            {/* Question Media Card */}
+            <div className="w-full max-w-[82%] h-full bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
+              {currentQ.image ? (
+                <SafeImage
+                  src={currentQ.image}
+                  alt="Question illustration"
+                  className="w-full h-full object-contain max-h-full rounded-xl"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                    <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
+                    <span className="bg-[#1368CE] rounded-lg shadow-sm" />
+                    <span className="bg-[#D89E00] rounded-lg shadow-sm" />
+                    <span className="bg-[#26890C] rounded-lg shadow-sm" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Question Text Banner */}
+          <div className="shrink-0 w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2.5 sm:py-3 px-3.5 rounded-xl shadow-md border border-white/50 max-h-28 overflow-y-auto">
+            <h2 className={`font-black leading-snug break-words text-slate-900 ${
+              (currentQ.text || "").length > 100
+                ? "text-[11px] sm:text-xs"
+                : (currentQ.text || "").length > 50
+                ? "text-xs sm:text-sm"
+                : "text-xs sm:text-sm md:text-base"
+            }`}>
               {currentQ.text}
             </h2>
           </div>
 
           {/* 1. TYPE / SHORT ANSWER */}
           {currentQ.type === "TYPE_ANSWER" && (
-            <div className="flex-1 flex flex-col justify-center space-y-2.5 sm:space-y-3 min-h-0">
+            <div className="shrink-0 flex flex-col justify-center space-y-2 py-1">
               <input
                 type="text"
                 placeholder="Type your answer here..."
                 id="challenge_text_answer_input"
-                className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-indigo-200 rounded-xl sm:rounded-2xl text-slate-900 font-bold text-sm sm:text-base focus:border-indigo-600 focus:outline-none"
+                className="w-full p-3 bg-white border-2 border-indigo-200 rounded-xl text-slate-900 font-bold text-sm focus:border-indigo-600 focus:outline-none"
               />
               <button
                 type="button"
@@ -503,7 +929,7 @@ export default function ChallengeGamePage() {
                     handleSelectAnswer({ id: "typed", text: input.value.trim() }, { textAnswer: input.value.trim() });
                   }
                 }}
-                className="w-full py-3.5 sm:py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-lg transition active:scale-95"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95"
               >
                 Submit Answer 🚀
               </button>
@@ -512,8 +938,8 @@ export default function ChallengeGamePage() {
 
           {/* 2. MULTI-SELECT (CHECKBOX) */}
           {currentQ.type === "MULTI_SELECT" && (
-            <div className="flex-1 flex flex-col justify-between space-y-2 min-h-0">
-              <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+            <div className="shrink-0 flex flex-col justify-between space-y-2">
+              <div className="grid grid-cols-2 gap-2">
                 {currentQ.answers?.map((ans: any, idx: number) => {
                   const letter = ["A", "B", "C", "D"][idx];
                   const isChecked = selectedAnswerIds.includes(ans.id);
@@ -522,10 +948,10 @@ export default function ChallengeGamePage() {
                       key={ans.id || idx}
                       type="button"
                       onClick={() => toggleMultiSelectId(ans.id)}
-                      className={`w-full h-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
+                      className={`w-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
                         isChecked
                           ? "bg-indigo-50 border-indigo-600 text-indigo-950 shadow-sm"
-                          : "bg-slate-50 border-slate-200 text-slate-700"
+                          : "bg-white border-slate-200 text-slate-700"
                       }`}
                     >
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -549,7 +975,7 @@ export default function ChallengeGamePage() {
                   }
                 }}
                 disabled={selectedAnswerIds.length === 0}
-                className="shrink-0 w-full py-2.5 sm:py-3 bg-indigo-600 disabled:opacity-40 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
+                className="shrink-0 w-full py-2.5 bg-indigo-600 disabled:opacity-40 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
               >
                 Submit Selected ({selectedAnswerIds.length})
               </button>
@@ -558,9 +984,9 @@ export default function ChallengeGamePage() {
 
           {/* 3. ORDERING / PUZZLE */}
           {currentQ.type === "ORDERING" && (
-            <div className="flex-1 flex flex-col justify-between space-y-2 min-h-0">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-500 text-center shrink-0">Tap items in sequence (1st to 4th)</p>
-              <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+            <div className="shrink-0 flex flex-col justify-between space-y-2">
+              <p className="text-[10px] sm:text-xs font-bold text-purple-200 text-center shrink-0">Tap items in sequence (1st to 4th)</p>
+              <div className="grid grid-cols-2 gap-2">
                 {currentQ.answers?.map((ans: any, idx: number) => {
                   const orderIndex = orderingSequence.indexOf(ans.id);
                   const isOrdered = orderIndex !== -1;
@@ -569,10 +995,10 @@ export default function ChallengeGamePage() {
                       key={ans.id || idx}
                       type="button"
                       onClick={() => toggleOrderingId(ans.id)}
-                      className={`w-full h-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
+                      className={`w-full p-2.5 rounded-xl border-2 font-bold text-xs sm:text-sm flex items-center justify-between transition ${
                         isOrdered
-                          ? "bg-purple-50 border-purple-600 text-purple-950 shadow-sm"
-                          : "bg-slate-50 border-slate-200 text-slate-700"
+                          ? "bg-purple-100 border-purple-500 text-purple-950 shadow-sm"
+                          : "bg-white border-slate-200 text-slate-700"
                       }`}
                     >
                       <span className="truncate text-left flex-1">{ans.text}</span>
@@ -593,7 +1019,7 @@ export default function ChallengeGamePage() {
                   }
                 }}
                 disabled={orderingSequence.length !== currentQ.answers?.length}
-                className="shrink-0 w-full py-2.5 sm:py-3 bg-purple-600 disabled:opacity-40 hover:bg-purple-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
+                className="shrink-0 w-full py-2.5 bg-purple-600 disabled:opacity-40 hover:bg-purple-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition"
               >
                 Lock In Sequence ({orderingSequence.length}/{currentQ.answers?.length})
               </button>
@@ -602,39 +1028,32 @@ export default function ChallengeGamePage() {
 
           {/* 4. TRUE_FALSE, POLL, MULTIPLE_CHOICE (2x2 Grid) */}
           {(currentQ.type === "MULTIPLE_CHOICE" || currentQ.type === "TRUE_FALSE" || currentQ.type === "POLL" || !currentQ.type) && (
-            <div className={`flex-1 min-h-0 w-full grid gap-2 sm:gap-2.5 pt-1 ${
+            <div className={`shrink-0 w-full grid gap-1.5 sm:gap-2 min-h-[110px] max-h-[160px] sm:max-h-[180px] ${
               (currentQ.type === "TRUE_FALSE" || currentQ.answers?.length === 2)
                 ? "grid-cols-2 grid-rows-1"
-                : currentQ.answers?.length === 3
-                ? "grid-cols-1 sm:grid-cols-3 grid-rows-3 sm:grid-rows-1"
                 : "grid-cols-2 grid-rows-2"
             }`}>
               {currentQ.answers?.map((ans: any, idx: number) => {
                 const isTF = currentQ.type === "TRUE_FALSE" || currentQ.answers?.length === 2;
-                const letter = ["A", "B", "C", "D"][idx];
                 const isTrue = (ans.text || "").toLowerCase().includes("true");
 
-                const choiceColors = [
-                  "bg-[#E21B3C] hover:bg-[#c91835] border-red-800",
-                  "bg-[#1368CE] hover:bg-[#1059b0] border-blue-800",
-                  "bg-[#D89E00] hover:bg-[#bd8a00] border-amber-700",
-                  "bg-[#26890C] hover:bg-[#1f7009] border-emerald-800",
+                const choiceShapes = [
+                  { bg: "bg-[#E21B3C] hover:bg-[#c91835] border-b-4 border-[#9c1228] active:border-b-0 active:translate-y-1", icon: "▲" },
+                  { bg: "bg-[#1368CE] hover:bg-[#1059b0] border-b-4 border-[#0d4a94] active:border-b-0 active:translate-y-1", icon: "◆" },
+                  { bg: "bg-[#D89E00] hover:bg-[#bd8a00] border-b-4 border-[#9e7400] active:border-b-0 active:translate-y-1", icon: "●" },
+                  { bg: "bg-[#26890C] hover:bg-[#1f7009] border-b-4 border-[#1a5e08] active:border-b-0 active:translate-y-1", icon: "■" },
                 ];
-                const choiceIcons = ["▲", "◆", "●", "■"];
 
-                const styleBg = isTF
-                  ? (isTrue ? choiceColors[1] : choiceColors[0])
-                  : choiceColors[idx % choiceColors.length];
-                const styleIcon = isTF
-                  ? (isTrue ? "◆" : "▲")
-                  : choiceIcons[idx % choiceIcons.length];
+                const style = isTF
+                  ? (isTrue ? choiceShapes[1] : choiceShapes[0])
+                  : choiceShapes[idx % choiceShapes.length];
 
                 const textLen = (ans.text || "").length;
-                const fontSizeClass = textLen > 45
+                const fontSizeClass = textLen > 30
                   ? "text-[10px] sm:text-xs"
-                  : textLen > 25
+                  : textLen > 18
                   ? "text-[11px] sm:text-sm"
-                  : textLen > 15
+                  : textLen > 10
                   ? "text-xs sm:text-base"
                   : "text-sm sm:text-lg";
 
@@ -642,38 +1061,86 @@ export default function ChallengeGamePage() {
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className={`w-full h-full p-2 sm:p-3 rounded-xl sm:rounded-2xl text-white font-black flex items-center justify-between border-b-2 sm:border-b-4 transition active:scale-95 shadow-md overflow-hidden ${styleBg}`}
+                    className={`w-full h-full min-h-[46px] sm:min-h-[52px] px-3 py-1.5 sm:py-2 rounded-xl text-white font-black flex items-center justify-center relative transition shadow-lg overflow-hidden ${style.bg}`}
                   >
-                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
-                      <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-black/20 shrink-0 flex items-center justify-center text-xs sm:text-sm shadow-inner">
-                        {styleIcon}
-                      </span>
-                      <span className={`text-left font-black leading-tight line-clamp-3 break-words flex-1 ${fontSizeClass}`}>
-                        {ans.text}
-                      </span>
-                    </div>
-                    <span className="text-[10px] sm:text-xs bg-white/20 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md uppercase tracking-wider font-bold shrink-0 ml-1">
-                      {letter}
+                    <span className="absolute left-2.5 sm:left-3 text-sm sm:text-base opacity-95">
+                      {style.icon}
+                    </span>
+                    <span className={`text-center font-black tracking-wide uppercase leading-tight line-clamp-2 px-6 ${fontSizeClass}`}>
+                      {ans.text}
                     </span>
                   </button>
                 );
               })}
             </div>
           )}
+
+          {/* Bottom Player Status Bar: Avatar + Nickname + Score Badge */}
+          <div className="shrink-0 flex items-center justify-between pt-1 border-t border-purple-400/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl sm:text-2xl shadow-md">
+                {avatar}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[140px] truncate">
+                  {nickname}
+                </span>
+                <span className="inline-block bg-[#3B1278] border border-purple-400/40 text-white font-mono font-black text-[11px] px-2 py-0.5 rounded-md mt-0.5 w-fit">
+                  {score}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200/80">
+                Q {currentQIndex + 1}/{challenge.quiz.questions.length}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
       {/* 3. QUESTION FEEDBACK & ADVANCE */}
       {stage === "FEEDBACK" && (
-        <div className="w-full max-w-md bg-white rounded-3xl p-6 text-slate-900 shadow-2xl flex flex-col justify-between space-y-6 text-center">
-          <div className="space-y-4 py-4">
-            <div className="w-16 h-16 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-3xl mx-auto font-black shadow-inner">
-              ✓
+        <div className="w-full max-w-md bg-white rounded-3xl p-6 text-slate-900 shadow-2xl flex flex-col justify-between space-y-6 text-center animate-fade-in">
+          <div className="space-y-4 py-2">
+            <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-3xl mx-auto shadow-xl transition transform ${
+              lastQuestionResult?.isCorrect ? "bg-emerald-500 text-white shadow-emerald-500/30" : "bg-rose-500 text-white shadow-rose-500/30"
+            }`}>
+              {lastQuestionResult?.isCorrect ? (
+                <Check className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3.5]" />
+              ) : (
+                <X className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3.5]" />
+              )}
             </div>
-            <h2 className="text-xl font-black text-slate-900">Answer Recorded!</h2>
-            <p className="text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              You selected: <span className="text-slate-900 font-extrabold">{lastQuestionResult?.selectedText}</span>
-            </p>
+
+            <div className="space-y-1">
+              <h2 className="text-xl sm:text-2xl font-black">
+                {lastQuestionResult?.isCorrect
+                  ? "Awesome! Spot On! 🔥"
+                  : lastQuestionResult?.timedOut
+                  ? "Time's Up! ⏰"
+                  : "Incorrect! ❌"}
+              </h2>
+              <p className="text-xs font-semibold text-slate-500">
+                {lastQuestionResult?.isCorrect
+                  ? "Great job! Keep the momentum going!"
+                  : lastQuestionResult?.timedOut
+                  ? "You didn't answer in time. Be quicker next round! 🚀"
+                  : "Keep your head up, you can catch up on the next question! 💪"}
+              </p>
+            </div>
+
+            {!lastQuestionResult?.isCorrect && lastQuestionResult?.correctAnswerText && (
+              <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-900 font-bold">
+                Correct answer was: <span className="underline font-black">{lastQuestionResult.correctAnswerText}</span>
+              </div>
+            )}
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold text-slate-600">
+              <span>Your Selection</span>
+              <span className="font-extrabold text-slate-900 max-w-[150px] truncate">{lastQuestionResult?.selectedText}</span>
+            </div>
           </div>
 
           <button

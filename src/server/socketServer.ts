@@ -401,7 +401,7 @@ export function initSocketServer(httpServer: HTTPServer) {
       }
 
       // Ensure unique nickname
-      const cleanNick = (data.nickname || "Player").trim().substring(0, 18);
+      const cleanNick = (data.nickname || "").trim().substring(0, 18);
 
       let existingPlayer: RoomPlayer | undefined;
       if (data.playerId && room.players.has(data.playerId)) {
@@ -410,6 +410,11 @@ export function initSocketServer(httpServer: HTTPServer) {
         existingPlayer = Array.from(room.players.values()).find(
           (p) => !p.isBot && p.nickname.toLowerCase() === cleanNick.toLowerCase()
         );
+      }
+
+      if (!existingPlayer && cleanNick.length < 3) {
+        socket.emit("player:join_error", { message: "Nickname must be at least 3 letters." });
+        return;
       }
 
       let playerId: string;
@@ -462,7 +467,27 @@ export function initSocketServer(httpServer: HTTPServer) {
       broadcastPlayerList(io, room);
       console.log(`[GameServer] Player '${player.nickname}' joined/reconnected room ${room.pin} (score: ${player.score}, status: ${room.status})`);
 
-      if (room.status === "QUESTION") {
+      if (room.status === "PREVIEW") {
+        const currQ = room.questions[room.currentQuestionIndex];
+        if (currQ) {
+          const previewPayload = {
+            questionIndex: room.currentQuestionIndex,
+            totalQuestions: room.questions.length,
+            questionText: currQ.text,
+            questionImage: currQ.image,
+            questionType: currQ.type,
+            timeLimit: currQ.timeLimit,
+            points: currQ.points,
+            previewSeconds: Math.max((room as any).previewRemaining || 5, 1),
+            isPreview: true,
+            question: currQ,
+          };
+          socket.emit("game:question_preview", previewPayload);
+          socket.emit("preview:tick", { previewRemaining: Math.max((room as any).previewRemaining || 5, 1) });
+        }
+      } else if (room.status === "STARTING") {
+        socket.emit("game:starting", { countdown: 3 });
+      } else if (room.status === "QUESTION") {
         const currQ = room.questions[room.currentQuestionIndex];
         if (currQ) {
           const sanitizedAnswers = currQ.answers.map((a) => ({
@@ -502,8 +527,26 @@ export function initSocketServer(httpServer: HTTPServer) {
           }
         }
       } else if (room.status === "LEADERBOARD") {
-        showLeaderboard(io, room);
-      } else if (room.status === "RESULTS") {
+        const sortedLeaderboard = Array.from(room.players.values())
+          .map((p) => ({
+            id: p.id,
+            nickname: p.nickname,
+            avatar: p.avatar,
+            score: p.score || 0,
+            lastPointsEarned: p.lastPointsEarned || 0,
+            streak: p.streak || 0,
+            rank: p.rank || 1,
+            isBot: p.isBot,
+          }))
+          .sort((a, b) => (b.score || 0) - (a.score || 0));
+
+        socket.emit("game:leaderboard", {
+          leaderboard: sortedLeaderboard,
+          isLastQuestion: room.currentQuestionIndex + 1 >= room.questions.length,
+          currentQuestionIndex: room.currentQuestionIndex,
+          totalQuestions: room.questions.length,
+        });
+      } else if (room.status === "RESULTS" || room.status === "ANSWERS_LOCKED") {
         const currQ = room.questions[room.currentQuestionIndex];
         if (currQ) {
           socket.emit("game:results", {
@@ -599,7 +642,7 @@ export function initSocketServer(httpServer: HTTPServer) {
         room.answersDistribution[data.answerId] = (room.answersDistribution[data.answerId] || 0) + 1;
       }
 
-      const correctAnswerObj = currQ.answers.find((a: any) => a.isCorrect);
+      const correctAnswerText = getQuestionCorrectAnswerText(currQ);
 
       socket.emit("player:answer_feedback", {
         hasAnswered: true,
@@ -607,7 +650,7 @@ export function initSocketServer(httpServer: HTTPServer) {
         pointsAwarded: scoreResult.points,
         streak: player.streak,
         score: player.score,
-        correctAnswerText: correctAnswerObj ? correctAnswerObj.text : (currQ.explanation || "Correct Option"),
+        correctAnswerText,
         explanation: currQ.explanation,
         timeRemaining: Math.max(room.timeRemaining, 0),
       });
@@ -695,6 +738,23 @@ export function initSocketServer(httpServer: HTTPServer) {
 // ----------------------------------------------------
 // HELPER FUNCTIONS & STATE TRANSITIONS
 // ----------------------------------------------------
+
+function getQuestionCorrectAnswerText(currQ: any) {
+  if (!currQ) return "";
+  if (currQ.type === "TYPE_ANSWER") {
+    return currQ.answers?.[0]?.text || "";
+  }
+  if (currQ.type === "MULTI_SELECT") {
+    const correct = currQ.answers?.filter((a: any) => a.isCorrect) || [];
+    return correct.map((a: any) => a.text).join(", ");
+  }
+  if (currQ.type === "ORDERING") {
+    const sorted = [...(currQ.answers || [])].sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+    return sorted.map((a: any) => a.text).join(" → ");
+  }
+  const correctObj = currQ.answers?.find((a: any) => a.isCorrect);
+  return correctObj ? correctObj.text : (currQ.explanation || "");
+}
 
 function broadcastPlayerList(io: SocketIOServer, room: GameRoom) {
   const playerList = Array.from(room.players.values()).map((p) => ({
@@ -946,6 +1006,7 @@ function lockAnswers(io: SocketIOServer, room: GameRoom) {
         streak: player.streak,
         rank: player.rank,
         prevRank: player.prevRank,
+        correctAnswerText: getQuestionCorrectAnswerText(currQ),
         explanation: currQ.explanation,
       });
     }

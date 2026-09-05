@@ -32,6 +32,7 @@ export default function PlayerGameControllerPage() {
     aheadPlayerName?: string | null;
     pointsBehind?: number;
     streak?: number;
+    timedOut?: boolean;
   } | null>(null);
   const [score, setScore] = useState(0);
   const [rank, setRank] = useState(1);
@@ -98,13 +99,21 @@ export default function PlayerGameControllerPage() {
         setScore(data.score);
         localStorage.setItem(`quiz_player_score_${pin}`, String(data.score));
       }
-      if (data.status === "QUESTION" || data.status === "PREVIEW") {
-        // Will receive game:question right away
-      } else if (data.status === "LEADERBOARD" || data.status === "RESULTS") {
+      if (data.status === "QUESTION") {
+        setGameState("QUESTION");
+      } else if (data.status === "PREVIEW") {
+        setGameState("PREVIEW");
+      } else if (data.status === "LEADERBOARD" || data.status === "RESULTS" || data.status === "ANSWERS_LOCKED") {
         setGameState("RESULTS");
+      } else if (data.status === "PODIUM" || data.status === "ENDED") {
+        setGameState("PODIUM");
       } else {
         setGameState("LOBBY");
       }
+    });
+
+    socket.on("player:answer_locked", () => {
+      setSelectedAnswerId("LOCKED");
     });
 
     socket.on("player:join_error", ({ message }: any) => {
@@ -214,8 +223,9 @@ export default function PlayerGameControllerPage() {
 
     const handleQuestionResult = (data: any) => {
       setGameState("RESULTS");
-      const isCorrect = data.isCorrect;
-      const pts = data.pointsEarned || 0;
+      const isCorrect = Boolean(data.isCorrect);
+      const pts = Number(data.pointsEarned || 0);
+      const timedOut = !selectedAnswerIdRef.current;
       setLastResult({
         isCorrect,
         pointsAwarded: pts,
@@ -223,6 +233,7 @@ export default function PlayerGameControllerPage() {
         aheadPlayerName: data.aheadPlayerName,
         pointsBehind: data.pointsBehind,
         streak: data.streak,
+        timedOut,
       });
       if (data.totalScore !== undefined) {
         setScore(data.totalScore);
@@ -238,13 +249,15 @@ export default function PlayerGameControllerPage() {
       setGameState("RESULTS");
       const currQ = currentQuestionRef.current;
       const correctAns = currQ?.answers?.find((a: any) => a.isCorrect);
-      const isCorrect = selectedAnswerIdRef.current === correctAns?.id;
+      const hasSelected = Boolean(selectedAnswerIdRef.current);
+      const isCorrect = hasSelected && correctAns ? selectedAnswerIdRef.current === correctAns?.id : false;
       const pts = isCorrect ? Math.round(1000 * (1 - ((Date.now() - startTimeRef.current) / 40000))) : 0;
       
       setLastResult((prev) => prev || {
         isCorrect,
         pointsAwarded: pts,
         correctAnswerText: correctAns?.text || data.explanation || "Correct Option",
+        timedOut: !hasSelected,
       });
     });
 
@@ -272,6 +285,7 @@ export default function PlayerGameControllerPage() {
       socket.off("game:question");
       socket.off("timer:tick");
       socket.off("game:timer_tick");
+      socket.off("player:answer_locked");
       socket.off("player:answer_feedback");
       socket.off("player:question_result", handleQuestionResult);
       socket.off("game:results");
@@ -400,7 +414,7 @@ export default function PlayerGameControllerPage() {
                 <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-24 sm:max-h-36" />
               </div>
             )}
-            <h2 className="text-base sm:text-xl font-black text-slate-900 leading-snug line-clamp-3">
+            <h2 className="text-sm sm:text-base md:text-xl font-black text-slate-900 leading-snug break-words max-h-28 overflow-y-auto">
               {currentQuestion.text}
             </h2>
           </div>
@@ -428,11 +442,11 @@ export default function PlayerGameControllerPage() {
         <div className="h-full flex-1 flex flex-col justify-between w-full max-w-md mx-auto space-y-1.5 sm:space-y-2 animate-fade-in overflow-hidden">
           {/* Top Bar: Question Number Circle + Quiz Badge */}
           <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
               {questionIndex + 1}
             </div>
 
-            <div className="px-3.5 py-1 bg-white text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
+            <div className="px-3.5 py-1 bg-white/95 text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
               <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
                 <span className="bg-[#E21B3C] rounded-[1px]" />
                 <span className="bg-[#1368CE] rounded-[1px]" />
@@ -445,30 +459,44 @@ export default function PlayerGameControllerPage() {
             <div className="w-8 sm:w-9" /> {/* Spacer */}
           </div>
 
-          {/* Center Image / Media Card */}
-          <div className="w-full flex-1 max-h-[46%] min-h-[120px] bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden my-auto border border-white/30">
-            {currentQuestion.image ? (
-              <SafeImage
-                src={currentQuestion.image}
-                alt="Question illustration"
-                className="w-full h-full object-contain max-h-full rounded-xl"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
-                <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
-                  <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
-                  <span className="bg-[#1368CE] rounded-lg shadow-sm" />
-                  <span className="bg-[#D89E00] rounded-lg shadow-sm" />
-                  <span className="bg-[#26890C] rounded-lg shadow-sm" />
+          {/* Center Image / Media Card with Left Floating Circular Timer */}
+          <div className="relative w-full flex-1 max-h-[46%] min-h-[130px] flex items-center justify-center my-auto">
+            {/* Floating circular countdown timer on the left */}
+            <div className="absolute left-0 sm:left-1 z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-2xl shrink-0">
+              {timeRemaining}
+            </div>
+
+            {/* Question Media Card */}
+            <div className="w-full max-w-[82%] h-full bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
+              {currentQuestion.image ? (
+                <SafeImage
+                  src={currentQuestion.image}
+                  alt="Question illustration"
+                  className="w-full h-full object-contain max-h-full rounded-xl"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                    <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
+                    <span className="bg-[#1368CE] rounded-lg shadow-sm" />
+                    <span className="bg-[#D89E00] rounded-lg shadow-sm" />
+                    <span className="bg-[#26890C] rounded-lg shadow-sm" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
                 </div>
-                <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Question Text Banner */}
-          <div className="shrink-0 w-full bg-[#E2E8F0] text-slate-900 font-extrabold text-center py-2 sm:py-2.5 px-3.5 rounded-xl shadow-md border border-white/40">
-            <h2 className="text-xs sm:text-sm md:text-base font-black leading-snug line-clamp-2 text-slate-900">
+          <div className="shrink-0 w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2 sm:py-2.5 px-3.5 rounded-xl shadow-md border border-white/50 max-h-28 overflow-y-auto">
+            <h2 className={`font-black leading-snug break-words text-slate-900 ${
+              (currentQuestion.text || "").length > 100
+                ? "text-[11px] sm:text-xs"
+                : (currentQuestion.text || "").length > 50
+                ? "text-xs sm:text-sm"
+                : "text-xs sm:text-sm md:text-base"
+            }`}>
               {currentQuestion.text}
             </h2>
           </div>
@@ -508,12 +536,12 @@ export default function PlayerGameControllerPage() {
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className={`w-full h-full min-h-[46px] sm:min-h-[52px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-white font-black flex items-center justify-start gap-2 sm:gap-3 transition shadow-lg overflow-hidden ${style.bg}`}
+                    className={`w-full h-full min-h-[46px] sm:min-h-[52px] px-3 py-1.5 sm:py-2 rounded-xl text-white font-black flex items-center justify-center relative transition shadow-lg overflow-hidden ${style.bg}`}
                   >
-                    <span className="text-sm sm:text-base opacity-95 shrink-0">
+                    <span className="absolute left-2.5 sm:left-3 text-sm sm:text-base opacity-95">
                       {style.icon}
                     </span>
-                    <span className={`text-left font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1 ${fontSizeClass}`}>
+                    <span className={`text-center font-black tracking-wide uppercase leading-tight line-clamp-2 px-6 ${fontSizeClass}`}>
                       {ans.text}
                     </span>
                   </button>
@@ -546,43 +574,24 @@ export default function PlayerGameControllerPage() {
             </div>
           )}
 
-          {/* Timer Progress Bar + Countdown Number */}
-          <div className="shrink-0 w-full flex items-center gap-2.5 py-0.5">
-            <div className="flex-1 h-2 bg-purple-950/60 rounded-full overflow-hidden p-0.5 border border-purple-400/30">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                  progressPercent > 50
-                    ? "bg-gradient-to-r from-emerald-400 to-indigo-400"
-                    : progressPercent > 20
-                    ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                    : "bg-gradient-to-r from-rose-500 to-rose-600 animate-pulse"
-                }`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-            <span className="text-sm font-black text-white font-mono shrink-0">
-              {timeRemaining}
-            </span>
-          </div>
-
-          {/* Bottom Player Status Bar: Avatar + Nickname + Score */}
+          {/* Bottom Player Status Bar: Avatar + Nickname + Score Badge */}
           <div className="shrink-0 flex items-center justify-between pt-1 border-t border-purple-400/20">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-400 border-2 border-white flex items-center justify-center text-lg sm:text-xl shadow-md">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl sm:text-2xl shadow-md">
                 {avatar}
               </div>
               <div className="flex flex-col text-left">
-                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[130px] truncate">
+                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[140px] truncate">
                   {nickname}
                 </span>
-                <span className="font-mono font-black text-white/90 text-xs leading-tight">
+                <span className="inline-block bg-[#3B1278] border border-purple-400/40 text-white font-mono font-black text-[11px] px-2 py-0.5 rounded-md mt-0.5 w-fit">
                   {score}
                 </span>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200/80">
                 PIN: {pin}
               </span>
             </div>
@@ -642,12 +651,18 @@ export default function PlayerGameControllerPage() {
             {/* Headline & Motivational Message */}
             <div className="space-y-0.5">
               <h2 className="text-xl sm:text-2xl font-black">
-                {lastResult?.isCorrect ? "Awesome! Spot On! 🔥" : "Failing is not the end! 💪"}
+                {lastResult?.isCorrect
+                  ? "Awesome! Spot On! 🔥"
+                  : lastResult?.timedOut
+                  ? "Time's Up! ⏰"
+                  : "Incorrect! ❌"}
               </h2>
               <p className="text-xs font-semibold text-indigo-200">
                 {lastResult?.isCorrect
                   ? "Lightning fast answer! Points awarded!"
-                  : "Dust it off, you can catch up on the next question! 🚀"}
+                  : lastResult?.timedOut
+                  ? "You ran out of time on this question! 🚀"
+                  : "Dust it off, you can catch up on the next question! 💪"}
               </p>
             </div>
 
@@ -662,14 +677,14 @@ export default function PlayerGameControllerPage() {
             <div className="bg-indigo-900/80 border border-indigo-400/30 rounded-xl p-3 w-full flex items-center justify-between">
               <div className="text-left">
                 <span className="text-[10px] font-bold text-indigo-300 uppercase block">Points Earned</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-400">
-                  {lastResult?.isCorrect ? `+${lastResult.pointsAwarded}` : "0"} pts
+                <span className={`text-lg sm:text-xl font-black ${lastResult?.isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
+                  {lastResult?.isCorrect ? `+${lastResult.pointsAwarded}` : "+0"} pts
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-bold text-indigo-300 uppercase block">Your Pick</span>
                 <span className="text-xs sm:text-sm font-bold text-white max-w-[130px] truncate block">
-                  {selectedAnswerText}
+                  {selectedAnswerText || (lastResult?.timedOut ? "No Answer" : "Submitted")}
                 </span>
               </div>
             </div>
@@ -684,16 +699,16 @@ export default function PlayerGameControllerPage() {
       )}
 
       {/* 5. RESULT FEEDBACK SCREEN */}
-      {gameState === "RESULTS" && lastResult && (
+      {gameState === "RESULTS" && (
         <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 text-center text-slate-900 shadow-2xl overflow-hidden space-y-3">
           <div className="space-y-3 w-full flex flex-col items-center my-auto">
             {/* Status Icon */}
             <div
               className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center shadow-xl ${
-                lastResult.isCorrect ? "bg-emerald-500 text-white shadow-emerald-500/30" : "bg-rose-500 text-white shadow-rose-500/30"
+                lastResult?.isCorrect ? "bg-emerald-500 text-white shadow-emerald-500/30" : "bg-rose-500 text-white shadow-rose-500/30"
               }`}
             >
-              {lastResult.isCorrect ? (
+              {lastResult?.isCorrect ? (
                 <Check className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3]" />
               ) : (
                 <X className="w-10 h-10 sm:w-12 sm:h-12 stroke-[3]" />
@@ -703,17 +718,23 @@ export default function PlayerGameControllerPage() {
             {/* Motivational Heading & Subtext */}
             <div className="space-y-0.5">
               <h2 className="text-xl sm:text-2xl font-black">
-                {lastResult.isCorrect ? "Awesome! Spot On! 🔥" : "Failing is not the end! 💪"}
+                {lastResult?.isCorrect
+                  ? "Awesome! Spot On! 🔥"
+                  : lastResult?.timedOut || !selectedAnswerId
+                  ? "Time's Up! ⏰"
+                  : "Incorrect! ❌"}
               </h2>
               <p className="text-xs font-semibold text-slate-500">
-                {lastResult.isCorrect
+                {lastResult?.isCorrect
                   ? "Lightning fast speed! Great reflexes!"
-                  : "Keep your head up, you can catch up on the next question! 🚀"}
+                  : lastResult?.timedOut || !selectedAnswerId
+                  ? "You ran out of time before answering. Stay sharp for the next one! 🚀"
+                  : "Keep your head up, you can catch up on the next question! 💪"}
               </p>
             </div>
 
             {/* Correct Answer reveal if incorrect */}
-            {!lastResult.isCorrect && (
+            {lastResult && !lastResult.isCorrect && lastResult.correctAnswerText && (
               <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-900 font-bold">
                 Correct answer was: <span className="underline font-black">{lastResult.correctAnswerText}</span>
               </div>
@@ -723,8 +744,8 @@ export default function PlayerGameControllerPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 w-full flex items-center justify-between">
               <div className="text-left">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">Points Earned</span>
-                <span className="text-xl font-black text-indigo-600">
-                  {lastResult.isCorrect ? `+${lastResult.pointsAwarded}` : "0"} pts
+                <span className={`text-xl font-black ${lastResult?.isCorrect ? "text-indigo-600" : "text-rose-500"}`}>
+                  {lastResult?.isCorrect ? `+${lastResult.pointsAwarded}` : "+0"} pts
                 </span>
               </div>
               <div className="text-right">
@@ -737,7 +758,7 @@ export default function PlayerGameControllerPage() {
 
             {/* Answer Streak & Encouragement Card */}
             <div className="w-full bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-3 text-center space-y-1">
-              {lastResult.streak && lastResult.streak > 1 ? (
+              {lastResult?.streak && lastResult.streak > 1 ? (
                 <p className="text-xs sm:text-sm font-black text-amber-600 flex items-center justify-center gap-1.5">
                   🔥 Answer Streak: {lastResult.streak} in a row!
                 </p>

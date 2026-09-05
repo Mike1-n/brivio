@@ -24,7 +24,7 @@ export async function GET(
                     text: true,
                     color: true,
                     order: true,
-                    // DO NOT reveal isCorrect to prevent client inspection
+                    isCorrect: true,
                   },
                   orderBy: { order: "asc" },
                 },

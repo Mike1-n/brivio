@@ -15,11 +15,25 @@ function MobileJoinGamePageContent() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("quiz_player_nickname");
+      if (saved) setNickname(saved);
+    }
+  }, []);
+
+  useEffect(() => {
     if (initialPin) {
       const clean = initialPin.replace(/[^0-9]/g, "").slice(0, 6);
       const arr = ["", "", "", "", "", ""];
       for (let i = 0; i < clean.length; i++) arr[i] = clean[i];
       setDigits(arr);
+    } else if (typeof window !== "undefined") {
+      const lastPin = localStorage.getItem("quiz_last_active_pin");
+      if (lastPin && lastPin.length === 6) {
+        const arr = ["", "", "", "", "", ""];
+        for (let i = 0; i < 6; i++) arr[i] = lastPin[i];
+        setDigits(arr);
+      }
     }
   }, [initialPin]);
 
@@ -60,16 +74,23 @@ function MobileJoinGamePageContent() {
       setError("Please enter a valid 6-digit PIN.");
       return;
     }
-    if (!nickname.trim()) {
+    const cleanNick = nickname.trim();
+    if (!cleanNick) {
       setError("Please enter a nickname.");
+      return;
+    }
+    if (cleanNick.length < 3) {
+      setError("Nickname must be at least 3 characters.");
       return;
     }
 
     // Save player profile locally
     const avatarList = ["🦁", "🦊", "🚀", "💎", "⚡", "🐼", "🦄", "🎯"];
-    const randomAvatar = avatarList[Math.floor(Math.random() * avatarList.length)];
-    localStorage.setItem("quiz_player_nickname", nickname.trim());
-    localStorage.setItem("quiz_player_avatar", randomAvatar);
+    const savedAvatar = localStorage.getItem("quiz_player_avatar");
+    const avatar = savedAvatar || avatarList[Math.floor(Math.random() * avatarList.length)];
+    localStorage.setItem("quiz_player_nickname", cleanNick);
+    localStorage.setItem("quiz_player_avatar", avatar);
+    localStorage.setItem("quiz_last_active_pin", pin);
 
     router.push(`/play/${pin}`);
   };
@@ -112,7 +133,7 @@ function MobileJoinGamePageContent() {
           {/* Nickname Input */}
           <div className="space-y-1">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Your Nickname
+              Your Nickname <span className="text-indigo-600 font-bold text-[10px]">(min 3 chars)</span>
             </label>
             <input
               type="text"
@@ -122,6 +143,7 @@ function MobileJoinGamePageContent() {
                 if (error) setError("");
               }}
               placeholder="e.g. LionKing_23"
+              minLength={3}
               maxLength={15}
               className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:bg-white focus:outline-none transition text-sm shadow-sm"
             />

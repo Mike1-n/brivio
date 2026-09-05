@@ -316,7 +316,7 @@ export default function HostScreenPage() {
       {/* ========================================================================= */}
       {(gameState === "QUESTION" || gameState === "RESULTS") && currentQuestion && (
         <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-2.5 sm:space-y-4">
-          {/* Clean Top Bar Header (Question index format: 2/10, Game PIN, and Action buttons) */}
+          {/* Clean Top Bar Header (Question index format: 2/10, Game PIN, Leader Callout, and Action buttons) */}
           <div className="flex items-center justify-between border-b border-purple-400/20 pb-2.5 sm:pb-3 shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3">
               <span className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-white/10 rounded-xl text-xs sm:text-sm font-black border border-white/15 tracking-wide">
@@ -325,6 +325,21 @@ export default function HostScreenPage() {
               <span className="font-mono text-xs sm:text-sm font-black bg-indigo-900/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-indigo-400/30">
                 PIN: {pin}
               </span>
+              {(() => {
+                const currentLineup = (leaderboard && leaderboard.length > 0)
+                  ? leaderboard
+                  : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
+                if (currentLineup[0] && currentLineup[0].nickname) {
+                  return (
+                    <div className="hidden sm:flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/40 px-3 py-1 rounded-xl text-xs font-bold text-amber-200 shadow-sm">
+                      <span>👑 Rank #1:</span>
+                      <span className="font-black text-white truncate max-w-[100px]">{currentLineup[0].nickname}</span>
+                      <span className="font-mono text-amber-300 font-extrabold">({Number(currentLineup[0].score || 0).toLocaleString()} pts)</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Host Controls: TWO BUTTONS (Leaderboard & Next) */}
@@ -356,7 +371,7 @@ export default function HostScreenPage() {
                 <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-32 md:max-h-48" />
               </div>
             )}
-            <h1 className="text-base sm:text-2xl md:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight max-w-5xl break-words line-clamp-3 sm:line-clamp-4 md:line-clamp-none">
+            <h1 className="text-base sm:text-2xl md:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight max-w-5xl break-words">
               {currentQuestion.text}
             </h1>
           </div>
@@ -376,6 +391,69 @@ export default function HostScreenPage() {
               />
             </div>
           </div>
+
+          {/* LIVE RANKS & STANDINGS TICKER (DISPLAYED DIRECTLY ON RESULTS SCREEN) */}
+          {gameState === "RESULTS" && (
+            <div className="w-full bg-purple-950/80 border border-purple-400/30 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl shrink-0 space-y-2">
+              <div className="flex items-center justify-between border-b border-purple-400/20 pb-1.5">
+                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  Live Player Standings & Ranks
+                </span>
+                <button
+                  onClick={handleShowLeaderboard}
+                  className="text-[10px] sm:text-xs font-extrabold text-purple-200 hover:text-white underline"
+                >
+                  Full Standings →
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 custom-scrollbar">
+                {(() => {
+                  const currentLineup = (leaderboard && leaderboard.length > 0)
+                    ? leaderboard
+                    : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
+
+                  if (currentLineup.length === 0) {
+                    return <span className="text-xs text-purple-300 italic">No player answers recorded yet.</span>;
+                  }
+
+                  return currentLineup.slice(0, 6).map((p: any, idx: number) => {
+                    const medals = ["🥇", "🥈", "🥉"];
+                    const earned = Number(p.lastPointsEarned ?? p.pointsEarned ?? p.pointsAwarded ?? 0);
+                    const totalScore = Number(p.score ?? p.totalScore ?? p.points ?? 0);
+
+                    return (
+                      <div
+                        key={p.id || idx}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-bold shadow-md ${
+                          idx === 0
+                            ? "bg-amber-500/25 border-amber-400/50 text-amber-200 ring-1 ring-amber-400/30"
+                            : idx === 1
+                            ? "bg-slate-400/20 border-slate-300/40 text-slate-200"
+                            : idx === 2
+                            ? "bg-amber-700/25 border-amber-600/40 text-amber-300"
+                            : "bg-white/10 border-white/15 text-white"
+                        }`}
+                      >
+                        <span className="font-black text-xs sm:text-sm">{idx < 3 ? medals[idx] : `#${idx + 1}`}</span>
+                        <span>{p.avatar || "🦊"}</span>
+                        <span className="font-extrabold max-w-[90px] sm:max-w-[120px] truncate text-white">{p.nickname}</span>
+                        {earned > 0 && (
+                          <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                            +{earned}
+                          </span>
+                        )}
+                        <span className="font-mono font-black text-amber-300 text-xs ml-0.5">
+                          {totalScore.toLocaleString()} pts
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* Full-Width 2x2 Answers Display Across Bottom (Responsive layout and fonts) */}
           <div className={`w-full grid gap-2 sm:gap-3 md:gap-4 shrink-0 max-h-[38vh] min-h-[100px] sm:min-h-[140px] ${
@@ -579,64 +657,96 @@ export default function HostScreenPage() {
       {/* 5. FULL-BLEED FINAL PODIUM VIEW (NO CARDS) */}
       {/* ========================================================================= */}
       {gameState === "PODIUM" && (
-        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in text-center space-y-6">
+        <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in text-center space-y-4 sm:space-y-6 overflow-y-auto">
           {/* Header */}
-          <div className="border-b border-purple-400/20 pb-4">
+          <div className="border-b border-purple-400/20 pb-3 shrink-0">
             <span className="text-xs font-black uppercase tracking-widest text-amber-300">Game Over</span>
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">Final Champions Podium 🏆</h1>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white">Final Champions Podium 🏆</h1>
           </div>
 
           {/* 3D Olympic Style Pillars */}
-          <div className="flex items-end justify-center gap-4 sm:gap-6 w-full max-w-3xl mx-auto my-auto min-h-[300px]">
-            {/* 2nd Place */}
-            <div className="flex flex-col items-center flex-1">
-              <div className="mb-3 text-center">
-                <span className="w-16 h-16 rounded-2xl bg-blue-500/30 border-2 border-blue-400 flex items-center justify-center text-4xl shadow-xl mx-auto">
-                  {leaderboard[1]?.avatar || "🥈"}
-                </span>
-                <p className="font-black text-base text-white mt-1.5">{leaderboard[1]?.nickname || "SmartCookie"}</p>
-                <p className="font-mono text-sm font-bold text-amber-300">{leaderboard[1]?.score?.toLocaleString() || "9,850"} pts</p>
-              </div>
-              <div className="w-full h-44 bg-gradient-to-b from-blue-500 to-blue-700 rounded-t-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl border-t-2 border-blue-300/40">
-                2
-              </div>
-            </div>
+          {(() => {
+            const podiumLineup = (leaderboard && leaderboard.length > 0)
+              ? leaderboard
+              : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
 
-            {/* 1st Place Champion */}
-            <div className="flex flex-col items-center flex-1 relative -mt-10">
-              <span className="text-4xl animate-bounce mb-1">👑</span>
-              <div className="mb-3 text-center">
-                <span className="w-20 h-20 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-5xl shadow-2xl mx-auto ring-4 ring-amber-400/20">
-                  {leaderboard[0]?.avatar || "👑"}
-                </span>
-                <p className="font-black text-lg text-white mt-1.5">{leaderboard[0]?.nickname || "Champion"}</p>
-                <p className="font-mono text-base font-black text-amber-300">{leaderboard[0]?.score?.toLocaleString() || "12,450"} pts</p>
-              </div>
-              <div className="w-full h-64 bg-gradient-to-b from-indigo-500 to-indigo-700 rounded-t-3xl flex items-center justify-center text-white text-6xl font-black shadow-2xl border-t-2 border-indigo-300/50">
-                1
-              </div>
-            </div>
+            return (
+              <div className="space-y-6 my-auto">
+                <div className="flex items-end justify-center gap-3 sm:gap-6 w-full max-w-3xl mx-auto min-h-[220px] sm:min-h-[280px]">
+                  {/* 2nd Place */}
+                  <div className="flex flex-col items-center flex-1">
+                    <div className="mb-2 text-center">
+                      <span className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-blue-500/30 border-2 border-blue-400 flex items-center justify-center text-2xl sm:text-4xl shadow-xl mx-auto">
+                        {podiumLineup[1]?.avatar || "🥈"}
+                      </span>
+                      <p className="font-black text-xs sm:text-base text-white mt-1 truncate max-w-[100px] sm:max-w-none">{podiumLineup[1]?.nickname || "Player 2"}</p>
+                      <p className="font-mono text-xs sm:text-sm font-bold text-amber-300">{Number(podiumLineup[1]?.score || 0).toLocaleString()} pts</p>
+                    </div>
+                    <div className="w-full h-28 sm:h-44 bg-gradient-to-b from-blue-500 to-blue-700 rounded-t-2xl sm:rounded-t-3xl flex items-center justify-center text-white text-3xl sm:text-5xl font-black shadow-2xl border-t-2 border-blue-300/40">
+                      2
+                    </div>
+                  </div>
 
-            {/* 3rd Place */}
-            <div className="flex flex-col items-center flex-1">
-              <div className="mb-3 text-center">
-                <span className="w-16 h-16 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-4xl shadow-xl mx-auto">
-                  {leaderboard[2]?.avatar || "🥉"}
-                </span>
-                <p className="font-black text-base text-white mt-1.5">{leaderboard[2]?.nickname || "QuizMaster"}</p>
-                <p className="font-mono text-sm font-bold text-amber-300">{leaderboard[2]?.score?.toLocaleString() || "8,600"} pts</p>
+                  {/* 1st Place Champion */}
+                  <div className="flex flex-col items-center flex-1 relative -mt-6 sm:-mt-10">
+                    <span className="text-2xl sm:text-4xl animate-bounce mb-1">👑</span>
+                    <div className="mb-2 text-center">
+                      <span className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-3xl sm:text-5xl shadow-2xl mx-auto ring-4 ring-amber-400/20">
+                        {podiumLineup[0]?.avatar || "👑"}
+                      </span>
+                      <p className="font-black text-sm sm:text-lg text-white mt-1 truncate max-w-[110px] sm:max-w-none">{podiumLineup[0]?.nickname || "Champion"}</p>
+                      <p className="font-mono text-xs sm:text-base font-black text-amber-300">{Number(podiumLineup[0]?.score || 0).toLocaleString()} pts</p>
+                    </div>
+                    <div className="w-full h-40 sm:h-64 bg-gradient-to-b from-indigo-500 to-indigo-700 rounded-t-2xl sm:rounded-t-3xl flex items-center justify-center text-white text-4xl sm:text-6xl font-black shadow-2xl border-t-2 border-indigo-300/50">
+                      1
+                    </div>
+                  </div>
+
+                  {/* 3rd Place */}
+                  <div className="flex flex-col items-center flex-1">
+                    <div className="mb-2 text-center">
+                      <span className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex items-center justify-center text-2xl sm:text-4xl shadow-xl mx-auto">
+                        {podiumLineup[2]?.avatar || "🥉"}
+                      </span>
+                      <p className="font-black text-xs sm:text-base text-white mt-1 truncate max-w-[100px] sm:max-w-none">{podiumLineup[2]?.nickname || "Player 3"}</p>
+                      <p className="font-mono text-xs sm:text-sm font-bold text-amber-300">{Number(podiumLineup[2]?.score || 0).toLocaleString()} pts</p>
+                    </div>
+                    <div className="w-full h-24 sm:h-36 bg-gradient-to-b from-amber-500 to-amber-700 rounded-t-2xl sm:rounded-t-3xl flex items-center justify-center text-white text-3xl sm:text-5xl font-black shadow-2xl border-t-2 border-amber-300/40">
+                      3
+                    </div>
+                  </div>
+                </div>
+
+                {/* Full Ranking Standings Below Podium for All Participants */}
+                {podiumLineup.length > 3 && (
+                  <div className="w-full max-w-2xl mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-2 text-left">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-purple-200 border-b border-purple-400/20 pb-1.5 flex items-center justify-between">
+                      <span>All Participant Final Ranks ({podiumLineup.length} Players)</span>
+                      <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    </h3>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {podiumLineup.slice(3).map((p: any, i: number) => (
+                        <div key={p.id || i} className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-purple-300 w-6">#{i + 4}</span>
+                            <span>{p.avatar || "🦊"}</span>
+                            <span className="font-extrabold text-white">{p.nickname}</span>
+                          </div>
+                          <span className="font-mono font-black text-amber-300">{Number(p.score || 0).toLocaleString()} pts</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="w-full h-36 bg-gradient-to-b from-amber-500 to-amber-700 rounded-t-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl border-t-2 border-amber-300/40">
-                3
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Footer Back Button */}
-          <div className="pt-4 border-t border-purple-400/20">
+          <div className="pt-3 border-t border-purple-400/20 shrink-0">
             <button
               onClick={() => router.push("/dashboard")}
-              className="px-8 py-3.5 bg-white text-purple-950 font-black text-base rounded-2xl shadow-2xl hover:bg-purple-50 transition active:scale-95"
+              className="px-8 py-3 bg-white text-purple-950 font-black text-sm sm:text-base rounded-2xl shadow-2xl hover:bg-purple-50 transition active:scale-95"
             >
               Back to Dashboard
             </button>
