@@ -383,6 +383,7 @@ export default function ChallengeGamePage() {
       isCorrect,
       selectedText: extraData.textAnswer || ans.text,
       correctAnswerText,
+      explanation: currentQ.explanation || "",
       timedOut: false,
     });
   };
@@ -417,6 +418,7 @@ export default function ChallengeGamePage() {
       isCorrect: false,
       selectedText: "Time Ran Out",
       correctAnswerText,
+      explanation: currentQ.explanation || "",
       timedOut: true,
     });
   };
@@ -775,46 +777,53 @@ export default function ChallengeGamePage() {
             </div>
           </div>
 
-          {/* Center Image / Media Card with Left Floating Countdown Badge */}
-          <div className="relative w-full flex-1 max-h-[46%] min-h-[130px] flex items-center justify-center my-auto">
-            {/* Left Floating Circular Countdown Timer */}
-            <div className="absolute left-0 sm:left-1 z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-2xl shrink-0 animate-pulse">
-              {previewSeconds}
-            </div>
-
-            {/* Center Image Card */}
-            <div className="w-full max-w-[82%] h-full bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
-              {currentQ.image ? (
+          {/* Question Media Card or Timer */}
+          {currentQ.image ? (
+            <div className="relative w-full flex-1 max-h-[22%] sm:max-h-[26%] min-h-[70px] sm:min-h-[85px] flex items-center justify-center my-auto">
+              <div className="absolute left-0 sm:left-1 z-10 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-lg sm:text-2xl flex items-center justify-center shadow-2xl shrink-0">
+                {previewSeconds}
+              </div>
+              <div className="w-full max-w-[74%] sm:max-w-[78%] h-full bg-white rounded-2xl sm:rounded-3xl p-2 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
                 <SafeImage
                   src={currentQ.image}
                   alt="Question illustration"
                   className="w-full h-full object-contain max-h-full rounded-xl"
                 />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
-                  <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
-                    <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
-                    <span className="bg-[#1368CE] rounded-lg shadow-sm" />
-                    <span className="bg-[#D89E00] rounded-lg shadow-sm" />
-                    <span className="bg-[#26890C] rounded-lg shadow-sm" />
-                  </div>
-                  <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-full flex items-center justify-center py-1">
+              <div className="w-12 h-12 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl flex items-center justify-center shadow-xl shrink-0">
+                {previewSeconds}
+              </div>
+            </div>
+          )}
 
-          {/* Question Text Banner */}
-          <div className="shrink-0 w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2 sm:py-2.5 px-3.5 rounded-xl shadow-md border border-white/50 max-h-28 overflow-y-auto">
-            <h2 className={`font-black leading-snug break-words text-slate-900 ${
-              (currentQ.text || "").length > 100
-                ? "text-[11px] sm:text-xs"
-                : (currentQ.text || "").length > 50
-                ? "text-xs sm:text-sm"
-                : "text-xs sm:text-sm md:text-base"
-            }`}>
-              {currentQ.text}
-            </h2>
+          {/* Question Text Banner with Enlarged Typography */}
+          <div className="w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2.5 sm:py-3.5 px-3.5 sm:px-5 rounded-xl sm:rounded-2xl shadow-md border border-white/50 flex items-center justify-center overflow-hidden min-h-[55px] max-h-40 overflow-y-auto">
+            {(() => {
+              const textLen = (currentQ.text || "").length;
+              const fontClass = currentQ.image
+                ? textLen > 140
+                  ? "text-xs sm:text-sm md:text-base"
+                  : textLen > 80
+                  ? "text-sm sm:text-base md:text-lg"
+                  : textLen > 40
+                  ? "text-base sm:text-lg md:text-xl"
+                  : "text-lg sm:text-xl md:text-2xl"
+                : textLen > 140
+                ? "text-sm sm:text-base md:text-lg"
+                : textLen > 80
+                ? "text-base sm:text-lg md:text-xl"
+                : textLen > 40
+                ? "text-lg sm:text-xl md:text-2xl"
+                : "text-xl sm:text-2xl md:text-3xl";
+              return (
+                <h2 className={`font-black leading-snug break-words [overflow-wrap:anywhere] text-slate-900 ${fontClass}`}>
+                  {currentQ.text}
+                </h2>
+              );
+            })()}
           </div>
 
           {/* Locked Answers Placeholder */}
@@ -870,46 +879,56 @@ export default function ChallengeGamePage() {
             <div className="w-8 sm:w-9" /> {/* Spacer */}
           </div>
 
-          {/* Center Image / Media Card with Left Floating Circular Timer */}
-          <div className="relative w-full flex-1 max-h-[46%] min-h-[130px] flex items-center justify-center my-auto">
-            {/* Floating circular countdown timer on the left */}
-            <div className="absolute left-0 sm:left-1 z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-2xl shrink-0">
-              {timeRemaining}
-            </div>
+          {/* Center Image / Media Card or Timer (Adaptive layout) */}
+          {currentQ.image ? (
+            <div className="relative w-full flex-1 max-h-[22%] sm:max-h-[26%] min-h-[70px] sm:min-h-[85px] flex items-center justify-center my-auto">
+              {/* Floating circular countdown timer on the left */}
+              <div className="absolute left-0 sm:left-1 z-10 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-lg sm:text-2xl flex items-center justify-center shadow-2xl shrink-0">
+                {timeRemaining}
+              </div>
 
-            {/* Question Media Card */}
-            <div className="w-full max-w-[82%] h-full bg-white rounded-2xl sm:rounded-3xl p-3 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
-              {currentQ.image ? (
+              {/* Question Media Card */}
+              <div className="w-full max-w-[74%] sm:max-w-[78%] h-full bg-white rounded-2xl sm:rounded-3xl p-2 shadow-2xl flex items-center justify-center overflow-hidden border border-white/30">
                 <SafeImage
                   src={currentQ.image}
                   alt="Question illustration"
                   className="w-full h-full object-contain max-h-full rounded-xl"
                 />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-3 space-y-1.5">
-                  <div className="grid grid-cols-2 gap-1.5 w-12 h-12 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
-                    <span className="bg-[#E21B3C] rounded-lg shadow-sm" />
-                    <span className="bg-[#1368CE] rounded-lg shadow-sm" />
-                    <span className="bg-[#D89E00] rounded-lg shadow-sm" />
-                    <span className="bg-[#26890C] rounded-lg shadow-sm" />
-                  </div>
-                  <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">brivio arena</span>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-full flex items-center justify-center py-1">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B1278] border-2 border-purple-400/40 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-xl shrink-0">
+                {timeRemaining}
+              </div>
+            </div>
+          )}
 
-          {/* Question Text Banner */}
-          <div className="shrink-0 w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2.5 sm:py-3 px-3.5 rounded-xl shadow-md border border-white/50 max-h-28 overflow-y-auto">
-            <h2 className={`font-black leading-snug break-words text-slate-900 ${
-              (currentQ.text || "").length > 100
-                ? "text-[11px] sm:text-xs"
-                : (currentQ.text || "").length > 50
-                ? "text-xs sm:text-sm"
-                : "text-xs sm:text-sm md:text-base"
-            }`}>
-              {currentQ.text}
-            </h2>
+          {/* Question Text Banner with Enlarged Typography */}
+          <div className="w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2.5 sm:py-3.5 px-3.5 sm:px-5 rounded-xl sm:rounded-2xl shadow-md border border-white/50 flex items-center justify-center overflow-hidden min-h-[55px] max-h-40 overflow-y-auto">
+            {(() => {
+              const textLen = (currentQ.text || "").length;
+              const fontClass = currentQ.image
+                ? textLen > 140
+                  ? "text-xs sm:text-sm md:text-base"
+                  : textLen > 80
+                  ? "text-sm sm:text-base md:text-lg"
+                  : textLen > 40
+                  ? "text-base sm:text-lg md:text-xl"
+                  : "text-lg sm:text-xl md:text-2xl"
+                : textLen > 140
+                ? "text-sm sm:text-base md:text-lg"
+                : textLen > 80
+                ? "text-base sm:text-lg md:text-xl"
+                : textLen > 40
+                ? "text-lg sm:text-xl md:text-2xl"
+                : "text-xl sm:text-2xl md:text-3xl";
+              return (
+                <h2 className={`font-black leading-snug break-words [overflow-wrap:anywhere] text-slate-900 ${fontClass}`}>
+                  {currentQ.text}
+                </h2>
+              );
+            })()}
           </div>
 
           {/* 1. TYPE / SHORT ANSWER */}
@@ -937,6 +956,7 @@ export default function ChallengeGamePage() {
           )}
 
           {/* 2. MULTI-SELECT (CHECKBOX) */}
+          {/* 2. MULTI_SELECT */}
           {currentQ.type === "MULTI_SELECT" && (
             <div className="shrink-0 flex flex-col justify-between space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -956,9 +976,9 @@ export default function ChallengeGamePage() {
                     >
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <span className="text-[11px] font-black text-slate-400 shrink-0">{letter}</span>
-                        <span className="truncate text-left">{ans.text}</span>
+                        <span className="break-words text-left flex-1 leading-snug">{ans.text}</span>
                       </div>
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ml-1 ${
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ml-1.5 ${
                         isChecked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"
                       }`}>
                         {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
@@ -1001,8 +1021,8 @@ export default function ChallengeGamePage() {
                           : "bg-white border-slate-200 text-slate-700"
                       }`}
                     >
-                      <span className="truncate text-left flex-1">{ans.text}</span>
-                      <span className={`w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center shrink-0 ml-1 ${
+                      <span className="break-words text-left flex-1 leading-snug">{ans.text}</span>
+                      <span className={`w-5 h-5 rounded-full font-black text-[10px] flex items-center justify-center shrink-0 ml-1.5 ${
                         isOrdered ? "bg-purple-600 text-white" : "bg-slate-200 text-slate-500"
                       }`}>
                         {isOrdered ? orderIndex + 1 : "+"}
@@ -1028,7 +1048,7 @@ export default function ChallengeGamePage() {
 
           {/* 4. TRUE_FALSE, POLL, MULTIPLE_CHOICE (2x2 Grid) */}
           {(currentQ.type === "MULTIPLE_CHOICE" || currentQ.type === "TRUE_FALSE" || currentQ.type === "POLL" || !currentQ.type) && (
-            <div className={`shrink-0 w-full grid gap-1.5 sm:gap-2 min-h-[110px] max-h-[160px] sm:max-h-[180px] ${
+            <div className={`shrink-0 w-full grid gap-1.5 sm:gap-2 min-h-[110px] ${
               (currentQ.type === "TRUE_FALSE" || currentQ.answers?.length === 2)
                 ? "grid-cols-2 grid-rows-1"
                 : "grid-cols-2 grid-rows-2"
@@ -1049,9 +1069,11 @@ export default function ChallengeGamePage() {
                   : choiceShapes[idx % choiceShapes.length];
 
                 const textLen = (ans.text || "").length;
-                const fontSizeClass = textLen > 30
+                const fontSizeClass = textLen > 60
+                  ? "text-[9px] sm:text-[11px]"
+                  : textLen > 35
                   ? "text-[10px] sm:text-xs"
-                  : textLen > 18
+                  : textLen > 20
                   ? "text-[11px] sm:text-sm"
                   : textLen > 10
                   ? "text-xs sm:text-base"
@@ -1061,12 +1083,12 @@ export default function ChallengeGamePage() {
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className={`w-full h-full min-h-[46px] sm:min-h-[52px] px-3 py-1.5 sm:py-2 rounded-xl text-white font-black flex items-center justify-center relative transition shadow-lg overflow-hidden ${style.bg}`}
+                    className={`w-full min-h-[50px] sm:min-h-[58px] px-2.5 sm:px-3 py-1.5 sm:py-2.5 rounded-xl text-white font-black flex items-center justify-center relative transition shadow-lg ${style.bg}`}
                   >
                     <span className="absolute left-2.5 sm:left-3 text-sm sm:text-base opacity-95">
                       {style.icon}
                     </span>
-                    <span className={`text-center font-black tracking-wide uppercase leading-tight line-clamp-2 px-6 ${fontSizeClass}`}>
+                    <span className={`text-center font-black tracking-wide uppercase leading-tight break-words px-5 sm:px-6 w-full ${fontSizeClass}`}>
                       {ans.text}
                     </span>
                   </button>
@@ -1137,9 +1159,22 @@ export default function ChallengeGamePage() {
               </div>
             )}
 
+            {/* Answer Explanation Note (if available) */}
+            {(lastQuestionResult?.explanation || challenge?.quiz?.questions?.[currentQIndex]?.explanation) && (
+              <div className="w-full bg-amber-50/90 border border-amber-300 rounded-xl p-3 text-left space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-amber-900 font-black text-xs uppercase tracking-wider">
+                  <span>💡</span>
+                  <span>Answer Explanation</span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed break-words [overflow-wrap:anywhere]">
+                  {lastQuestionResult?.explanation || challenge?.quiz?.questions?.[currentQIndex]?.explanation}
+                </p>
+              </div>
+            )}
+
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold text-slate-600">
               <span>Your Selection</span>
-              <span className="font-extrabold text-slate-900 max-w-[150px] truncate">{lastQuestionResult?.selectedText}</span>
+              <span className="font-extrabold text-slate-900 max-w-[65%] text-right break-words">{lastQuestionResult?.selectedText}</span>
             </div>
           </div>
 

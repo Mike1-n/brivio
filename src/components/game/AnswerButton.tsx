@@ -60,9 +60,9 @@ export function AnswerButton({
         )}
       >
         <div className="flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-black opacity-90 drop-shadow-md">{item.shape}</span>
-            <span className="text-xl md:text-2xl font-bold tracking-tight drop-shadow">{text}</span>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-3xl font-black opacity-90 drop-shadow-md shrink-0">{item.shape}</span>
+            <span className="text-lg md:text-xl lg:text-2xl font-bold tracking-tight drop-shadow break-words leading-snug flex-1">{text}</span>
           </div>
           {showResult && (
             <div className="flex items-center gap-2">

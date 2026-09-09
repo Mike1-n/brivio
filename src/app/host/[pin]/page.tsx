@@ -367,13 +367,25 @@ export default function HostScreenPage() {
           {/* Center Question Prompt & Media (Responsive typography adjusted for phones and larger screens) */}
           <div className="flex-1 flex flex-col items-center justify-center text-center px-2 sm:px-4 my-auto min-h-0 space-y-2 sm:space-y-3 overflow-y-auto">
             {currentQuestion.image && (
-              <div className="max-h-20 sm:max-h-32 md:max-h-48 w-auto max-w-full rounded-xl sm:rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl shrink-0">
-                <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-32 md:max-h-48" />
+              <div className="max-h-20 sm:max-h-28 md:max-h-40 w-auto max-w-full rounded-xl sm:rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl shrink-0">
+                <SafeImage src={currentQuestion.image} alt="Question" className="w-full h-full object-contain max-h-20 sm:max-h-28 md:max-h-40" />
               </div>
             )}
-            <h1 className="text-base sm:text-2xl md:text-4xl lg:text-5xl font-black text-white leading-snug sm:leading-tight max-w-5xl break-words">
-              {currentQuestion.text}
-            </h1>
+            {(() => {
+              const textLen = (currentQuestion.text || "").length;
+              const fontClass = textLen > 160
+                ? "text-lg sm:text-2xl md:text-3xl lg:text-4xl"
+                : textLen > 100
+                ? "text-xl sm:text-3xl md:text-4xl lg:text-5xl"
+                : textLen > 50
+                ? "text-2xl sm:text-4xl md:text-5xl lg:text-6xl"
+                : "text-3xl sm:text-5xl md:text-6xl lg:text-7xl";
+              return (
+                <h1 className={`font-black text-white leading-snug sm:leading-tight max-w-5xl break-words [overflow-wrap:anywhere] drop-shadow-md ${fontClass}`}>
+                  {currentQuestion.text}
+                </h1>
+              );
+            })()}
           </div>
 
           {/* Smooth Timer Bar Line (Positioned below the question prompt) */}
@@ -394,19 +406,32 @@ export default function HostScreenPage() {
 
           {/* LIVE RANKS & STANDINGS TICKER (DISPLAYED DIRECTLY ON RESULTS SCREEN) */}
           {gameState === "RESULTS" && (
-            <div className="w-full bg-purple-950/80 border border-purple-400/30 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl shrink-0 space-y-2">
-              <div className="flex items-center justify-between border-b border-purple-400/20 pb-1.5">
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                  Live Player Standings & Ranks
-                </span>
-                <button
-                  onClick={handleShowLeaderboard}
-                  className="text-[10px] sm:text-xs font-extrabold text-purple-200 hover:text-white underline"
-                >
-                  Full Standings →
-                </button>
-              </div>
+            <>
+              {currentQuestion.explanation && (
+                <div className="w-full max-w-4xl mx-auto bg-amber-500/20 border border-amber-400/40 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 text-left shadow-xl shrink-0 space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-wider">
+                    <span>💡</span>
+                    <span>Answer Explanation</span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-semibold text-white/95 leading-relaxed break-words [overflow-wrap:anywhere]">
+                    {currentQuestion.explanation}
+                  </p>
+                </div>
+              )}
+
+              <div className="w-full bg-purple-950/80 border border-purple-400/30 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl shrink-0 space-y-2">
+                <div className="flex items-center justify-between border-b border-purple-400/20 pb-1.5">
+                  <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    Live Player Standings & Ranks
+                  </span>
+                  <button
+                    onClick={handleShowLeaderboard}
+                    className="text-[10px] sm:text-xs font-extrabold text-purple-200 hover:text-white underline"
+                  >
+                    Full Standings →
+                  </button>
+                </div>
 
               <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 custom-scrollbar">
                 {(() => {
@@ -453,10 +478,11 @@ export default function HostScreenPage() {
                 })()}
               </div>
             </div>
+            </>
           )}
 
           {/* Full-Width 2x2 Answers Display Across Bottom (Responsive layout and fonts) */}
-          <div className={`w-full grid gap-2 sm:gap-3 md:gap-4 shrink-0 max-h-[38vh] min-h-[100px] sm:min-h-[140px] ${
+          <div className={`w-full grid gap-2 sm:gap-3 md:gap-4 shrink-0 min-h-[100px] sm:min-h-[140px] ${
             (currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2)
               ? "grid-cols-2 grid-rows-1"
               : "grid-cols-1 sm:grid-cols-2 grid-rows-2"
@@ -476,6 +502,13 @@ export default function HostScreenPage() {
                 ? (isTrue ? choiceShapes[1] : choiceShapes[0])
                 : choiceShapes[idx % choiceShapes.length];
 
+              const textLen = (ans.text || "").length;
+              const fontSizeClass = textLen > 80
+                ? "text-xs sm:text-sm md:text-base"
+                : textLen > 40
+                ? "text-xs sm:text-base md:text-lg"
+                : "text-xs sm:text-base md:text-xl";
+
               const isCorrect = ans.isCorrect;
               const isRevealed = gameState === "RESULTS";
               const votes = answerStats.counts?.[ans?.id] || 0;
@@ -484,7 +517,7 @@ export default function HostScreenPage() {
               return (
                 <div
                   key={ans.id || idx}
-                  className={`w-full h-full min-h-[44px] sm:min-h-[58px] p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl font-bold sm:font-black text-xs sm:text-base md:text-xl flex items-center justify-between shadow-xl transition-all duration-300 ${
+                  className={`w-full min-h-[48px] sm:min-h-[60px] p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl font-bold sm:font-black flex items-center justify-between shadow-xl transition-all duration-300 ${
                     style.bg
                   } ${
                     isRevealed && !isCorrect ? "opacity-35 grayscale" : ""
@@ -496,7 +529,7 @@ export default function HostScreenPage() {
                     <span className="text-sm sm:text-xl md:text-2xl opacity-90 shrink-0">
                       {style.icon}
                     </span>
-                    <span className="text-left font-bold sm:font-black tracking-wide uppercase leading-tight line-clamp-2 break-words flex-1">
+                    <span className={`text-left font-bold sm:font-black tracking-wide uppercase leading-snug break-words flex-1 ${fontSizeClass}`}>
                       {ans.text}
                     </span>
                   </div>
