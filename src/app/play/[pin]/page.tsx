@@ -272,7 +272,21 @@ export default function PlayerGameControllerPage() {
 
     socket.on("game:podium", (data: any) => {
       setGameState("PODIUM");
-      setLeaderboard(data.topPlayers || []);
+      const top3 = data.podium || data.topPlayers || [];
+      const allRanks = data.fullRanking || top3;
+      setLeaderboard(top3);
+      if (data.totalPlayers) setTotalPlayers(data.totalPlayers);
+
+      // Find player's exact rank
+      const myNick = (localStorage.getItem("quiz_player_nickname") || nickname || "").trim().toLowerCase();
+      const me = allRanks.find((p: any) =>
+        (playerIdRef.current && p.id === playerIdRef.current) ||
+        (p.nickname || "").trim().toLowerCase() === myNick
+      );
+      if (me) {
+        if (me.rank) setRank(me.rank);
+        if (me.score !== undefined) setScore(me.score);
+      }
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
     });
 
@@ -832,46 +846,140 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
 
-      {/* 6. PLAYER FINAL RESULTS (RANK-FREE CELEBRATION VIEW) */}
+      {/* 6. PLAYER FINAL RESULTS (TOP 3 PODIUM + PLAYER POSITION) */}
       {gameState === "PODIUM" && (
-        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-2xl text-center overflow-hidden animate-fade-in space-y-3">
+        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 text-white shadow-2xl text-center overflow-y-auto animate-fade-in space-y-2.5">
           {/* Header */}
           <div className="shrink-0 space-y-0.5">
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-indigo-200">
               Game Finished
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Final Results 🏆</h1>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">Final Results 🏆</h1>
           </div>
 
-          {/* Single Unified Champion / Score Section */}
-          <div className="flex flex-col items-center space-y-3 my-auto py-1">
-            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white/15 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-4xl shadow-2xl animate-bounce">
-              🎉
-            </div>
-
-            <div className="space-y-1">
-              <h2 className="text-xl sm:text-2xl font-black">
-                Great Game, {nickname}! 🌟
-              </h2>
-              <p className="text-xs sm:text-sm font-semibold text-indigo-200">
-                Check the host screen for the final champion podium! 🏆
-              </p>
-            </div>
-
-            <div className="px-6 py-3 rounded-xl bg-indigo-900/60 border border-indigo-400/30 shadow-inner flex items-center gap-2.5">
-              <span className="text-xs font-black uppercase tracking-wider text-indigo-200">
-                Your Final Score:
-              </span>
-              <span className="font-mono text-xl sm:text-2xl font-black text-amber-300">
+          {/* Player Score Stats Card with Position Number */}
+          <div className="shrink-0 w-full grid grid-cols-2 gap-2 bg-indigo-900/70 border border-indigo-400/30 rounded-2xl p-3 text-center">
+            <div>
+              <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Score</span>
+              <span className="font-mono text-base sm:text-lg font-black text-amber-300">
                 {score.toLocaleString()} pts
               </span>
             </div>
+            <div>
+              <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Position</span>
+              <span className="text-base sm:text-lg font-black text-white">
+                #{rank} <span className="text-[10px] text-indigo-300 font-bold font-sans">/ {totalPlayers}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Top 3 Podium Box */}
+          <div className="w-full bg-indigo-950/60 border border-indigo-400/30 rounded-2xl p-3 sm:p-3.5 space-y-2 text-left">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🏆</span>
+                <h3 className="text-xs font-black uppercase tracking-wider text-indigo-200">
+                  Top 3 Podium
+                </h3>
+              </div>
+              <span className="text-[10px] font-extrabold text-indigo-300">
+                {totalPlayers} Total Players
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {leaderboard.slice(0, 3).map((p: any, idx: number) => {
+                const myNick = (nickname || "").trim().toLowerCase();
+                const isMe = (p.id && playerIdRef.current && p.id === playerIdRef.current) || (p.nickname || "").trim().toLowerCase() === myNick;
+                const rankNum = p.rank || idx + 1;
+                const medalIcons = ["🥇", "🥈", "🥉"];
+
+                return (
+                  <div
+                    key={p.id || idx}
+                    className={`flex items-center justify-between p-2.5 px-3 rounded-xl text-xs font-bold transition ${
+                      isMe
+                        ? "bg-amber-400 text-slate-950 shadow-md ring-2 ring-white"
+                        : "bg-indigo-900/60 border border-indigo-500/30 text-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="w-5 text-center text-sm font-black shrink-0">
+                        {medalIcons[rankNum - 1] || `#${rankNum}`}
+                      </span>
+                      <span className="w-7 h-7 rounded-lg bg-white/20 border border-white/20 flex items-center justify-center text-sm shadow-sm shrink-0">
+                        {p.avatar || "🦊"}
+                      </span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className={`truncate max-w-[120px] ${isMe ? "font-black" : "font-bold"}`}>
+                          {p.nickname}
+                        </span>
+                        {isMe && (
+                          <span className="px-1.5 py-0.2 bg-slate-950 text-amber-300 font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 pl-2">
+                      <span className="font-mono font-black text-sm block">
+                        {p.score?.toLocaleString()} pts
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* If player is outside top 3, show their position row */}
+            {rank > 3 && (
+              <div className="pt-1.5 space-y-1.5">
+                <div className="flex items-center justify-center gap-1 text-indigo-300/60 font-black text-xs py-0.5">
+                  <span>•</span>
+                  <span>•</span>
+                  <span>•</span>
+                </div>
+
+                <div className="p-2.5 px-3 bg-amber-400 text-slate-950 rounded-xl shadow-md ring-2 ring-white flex items-center justify-between text-xs font-bold animate-fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="font-black text-xs sm:text-sm px-2 py-0.5 rounded-lg bg-slate-950/15 text-slate-950 shadow-inner shrink-0">
+                      #{rank}
+                    </span>
+                    <span className="w-7 h-7 rounded-lg bg-white/40 border border-black/10 flex items-center justify-center text-sm shrink-0">
+                      {avatar || "🦊"}
+                    </span>
+                    <div className="flex flex-col text-left truncate">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-slate-950 truncate max-w-[110px]">
+                          {nickname}
+                        </span>
+                        <span className="px-1.5 py-0.2 bg-slate-950 text-amber-300 font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
+                          You
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-800 font-bold">
+                        Your Final Position
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 pl-2">
+                    <span className="font-mono font-black text-sm sm:text-base block">
+                      {score.toLocaleString()} pts
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-800">
+                      Rank #{rank} of {totalPlayers}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Play Again Button */}
           <button
             onClick={() => router.push("/play")}
-            className="shrink-0 w-full py-3.5 sm:py-4 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-95 font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-xl transition"
+            className="shrink-0 w-full py-3 sm:py-3.5 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-95 font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-xl transition"
           >
             Play Another Game 🎮
           </button>

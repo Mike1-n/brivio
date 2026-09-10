@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Play, Trophy, Check, X, Clock, Users, ArrowRight, CheckCircle2, RotateCcw, AlertCircle } from "lucide-react";
+import { Play, Trophy, Check, X, Clock, Users, ArrowRight, CheckCircle2, RotateCcw, AlertCircle, Search, RefreshCw } from "lucide-react";
 import confetti from "canvas-confetti";
 import { soundEffects } from "@/lib/soundEffects";
 import SafeImage from "@/components/SafeImage";
@@ -18,6 +18,27 @@ export default function ChallengeGamePage() {
   const [challenge, setChallenge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Ranks Modal State
+  const [showRanksModal, setShowRanksModal] = useState(false);
+  const [ranksScope, setRanksScope] = useState<"all" | "challenge">("all");
+  const [ranksSearchQuery, setRanksSearchQuery] = useState("");
+  const [isRefreshingRanks, setIsRefreshingRanks] = useState(false);
+
+  const refreshRanksData = async () => {
+    try {
+      setIsRefreshingRanks(true);
+      const res = await fetch(`/api/challenges/${challengeId}`);
+      const data = await res.json();
+      if (data.challenge) {
+        setChallenge(data.challenge);
+      }
+    } catch (err) {
+      console.error("Failed to refresh challenge ranks:", err);
+    } finally {
+      setIsRefreshingRanks(false);
+    }
+  };
 
   // Game Flow: "ENTRY" | "PREVIEW" | "PLAYING" | "FEEDBACK" | "FINISHED"
   const [stage, setStage] = useState<"ENTRY" | "PREVIEW" | "PLAYING" | "FEEDBACK" | "FINISHED">("ENTRY");
@@ -517,10 +538,10 @@ export default function ChallengeGamePage() {
   return (
     <div className={`h-[100dvh] max-h-[100dvh] ${
       stage === "PLAYING" || stage === "PREVIEW" ? "bg-[#46178F]" : "bg-[#0B0E23]"
-    } flex flex-col justify-center items-center p-2.5 sm:p-4 font-sans text-white overflow-hidden`}>
+    } flex flex-col justify-center items-center p-2.5 sm:p-4 font-sans text-white overflow-hidden relative`}>
       {/* 0. EXPIRED / CLOSED CHALLENGE VIEW (EXPIRES AT EXACT SECOND) */}
       {isChallengeExpired && stage !== "FINISHED" && (
-        <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-6 text-center animate-fade-in">
+        <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-5 text-center animate-fade-in max-h-[95vh] overflow-y-auto">
           <div className="space-y-3">
             <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
               ⏰
@@ -538,66 +559,121 @@ export default function ChallengeGamePage() {
             </div>
           </div>
 
-          {/* Final Standings Leaderboard */}
+          {/* Final Standings Leaderboard Preview */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-                Final Leaderboard ({challenge?.attempts?.length || 0} Players)
+                Final Leaderboard ({challenge?.totalQuizParticipants || challenge?.allQuizRankings?.length || challenge?.attempts?.length || 0} Players)
               </span>
-              <Trophy className="w-4 h-4 text-amber-500" />
+              <button
+                type="button"
+                onClick={() => {
+                  setRanksScope("all");
+                  setShowRanksModal(true);
+                }}
+                className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+              >
+                <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                <span>Full Ranks</span>
+              </button>
             </div>
 
-            {(!challenge?.attempts || challenge.attempts.length === 0) ? (
-              <p className="text-xs font-bold text-slate-400 text-center py-4">No participants joined this challenge.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {challenge.attempts.map((att: any, idx: number) => {
-                  const medalIcons = ["🥇", "🥈", "🥉"];
-                  return (
-                    <div
-                      key={att.id}
-                      className={`p-2.5 rounded-xl flex items-center justify-between text-xs font-bold ${
-                        idx < 3 ? "bg-white shadow-sm border border-slate-200" : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 text-center font-black">
-                          {idx < 3 ? medalIcons[idx] : `${idx + 1}.`}
+            {(() => {
+              const displayList = (challenge?.allQuizRankings && challenge.allQuizRankings.length > 0)
+                ? challenge.allQuizRankings
+                : (challenge?.attempts || []);
+
+              if (displayList.length === 0) {
+                return <p className="text-xs font-bold text-slate-400 text-center py-4">No participants joined this challenge.</p>;
+              }
+
+              return (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {displayList.map((att: any, idx: number) => {
+                    const medalIcons = ["🥇", "🥈", "🥉"];
+                    const rankNum = att.rank || idx + 1;
+                    return (
+                      <div
+                        key={att.id || idx}
+                        className={`p-2.5 rounded-xl flex items-center justify-between text-xs font-bold ${
+                          rankNum <= 3 ? "bg-white shadow-sm border border-slate-200" : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 text-center font-black">
+                            {rankNum <= 3 ? medalIcons[rankNum - 1] : `#${rankNum}`}
+                          </span>
+                          <span>{att.avatar || "🦊"}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-slate-900 truncate max-w-[120px]">{att.nickname}</span>
+                            {att.challengeTitle && (
+                              <span className="text-[9px] px-1 py-0.2 bg-slate-200 text-slate-700 rounded font-bold">
+                                {att.challengeTitle}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="font-mono font-black text-indigo-600">
+                          {att.score?.toLocaleString()} pts
                         </span>
-                        <span>{att.avatar || "🦊"}</span>
-                        <span className="font-extrabold text-slate-900 truncate max-w-[120px]">{att.nickname}</span>
                       </div>
-                      <span className="font-mono font-black text-indigo-600">
-                        {att.score?.toLocaleString()} pts
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
-          <button
-            onClick={() => router.push("/explore")}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl transition"
-          >
-            Explore Public Quizzes 🚀
-          </button>
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setRanksScope("all");
+                setShowRanksModal(true);
+              }}
+              className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
+            >
+              <Trophy className="w-4 h-4 fill-slate-950" />
+              View Complete Participant Ranks
+            </button>
+            <button
+              onClick={() => router.push("/explore")}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+            >
+              Explore Public Quizzes 🚀
+            </button>
+          </div>
         </div>
       )}
 
       {/* 1. ENTRY & NICKNAME REGISTRATION (ACTIVE CHALLENGE) */}
       {!isChallengeExpired && stage === "ENTRY" && challenge && (
-        <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-6 animate-fade-in">
+        <div className="w-full max-w-md bg-white rounded-3xl p-5 sm:p-7 text-slate-900 shadow-2xl space-y-4 animate-fade-in max-h-[96vh] overflow-y-auto">
+          {/* Header Bar with Challenge Title & Ranks Trigger */}
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mx-auto shadow-sm">
-              🏆
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-black shadow-sm">
+                🎮
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRanksScope("all");
+                  setShowRanksModal(true);
+                }}
+                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-black text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95"
+                title="View All Participant Ranks"
+              >
+                <Trophy className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                <span>Ranks ({challenge.totalQuizParticipants || challenge.allQuizRankings?.length || challenge.attempts?.length || 0})</span>
+              </button>
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-snug">
+
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
               {challenge.title}
             </h1>
             <p className="text-xs text-slate-500 font-semibold">
-              Hosted by {challenge.quiz?.author?.name || "Teacher"} • {challenge.quiz?.questions?.length || 10} Questions
+              Hosted by {challenge.quiz?.author?.name || "Quiz Arena Host"} • {challenge.quiz?.questions?.length || 10} Questions
             </p>
 
             {challenge.deadline && (
@@ -616,64 +692,64 @@ export default function ChallengeGamePage() {
 
           {/* RESUME IN-PROGRESS CHALLENGE CARD */}
           {savedSession && savedSession.currentQIndex < (challenge.quiz?.questions?.length || 0) && (
-            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-2xl p-4 text-slate-900 space-y-3 shadow-md animate-fade-in">
+            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-2xl p-3.5 text-slate-900 space-y-2.5 shadow-md animate-fade-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl shadow-md">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-lg shadow-md">
                     {savedSession.avatar || "🦊"}
                   </div>
                   <div className="text-left">
-                    <h3 className="text-sm font-black text-slate-900 leading-tight">
+                    <h3 className="text-xs font-black text-slate-900 leading-tight">
                       Welcome back, {savedSession.nickname}!
                     </h3>
-                    <p className="text-[11px] font-semibold text-slate-500">
+                    <p className="text-[10px] font-semibold text-slate-500">
                       Continue from where you left off
                     </p>
                   </div>
                 </div>
-                <span className="px-2.5 py-1 bg-amber-100 text-amber-900 font-extrabold text-[10px] rounded-full uppercase tracking-wider border border-amber-200">
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-900 font-extrabold text-[9px] rounded-full uppercase tracking-wider border border-amber-200">
                   In Progress
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-white/90 rounded-xl p-2.5 border border-indigo-100 text-center text-xs">
+              <div className="grid grid-cols-2 gap-2 bg-white/90 rounded-xl p-2 border border-indigo-100 text-center text-xs">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Next Question</span>
-                  <span className="font-black text-indigo-600">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Next Question</span>
+                  <span className="font-black text-indigo-600 text-xs">
                     Q {savedSession.currentQIndex + 1} of {challenge.quiz?.questions?.length || 0}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Current Score</span>
-                  <span className="font-mono font-black text-emerald-600">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Current Score</span>
+                  <span className="font-mono font-black text-emerald-600 text-xs">
                     {savedSession.score?.toLocaleString()} pts
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-0.5">
                 <button
                   type="button"
                   onClick={handleResumeChallenge}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95"
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 active:scale-95"
                 >
-                  <Play className="w-4 h-4 fill-white" />
-                  Resume Question {savedSession.currentQIndex + 1}
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  Resume Q{savedSession.currentQIndex + 1}
                 </button>
                 <button
                   type="button"
                   onClick={clearSavedSession}
                   title="Start over from Question 1"
-                  className="px-3 py-3 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1 border border-slate-200 shadow-sm"
+                  className="px-2.5 py-2.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1 border border-slate-200 shadow-sm"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3 h-3" />
                   <span className="hidden sm:inline">Start Over</span>
                 </button>
               </div>
             </div>
           )}
 
-          <form onSubmit={handleStartChallenge} className="space-y-5">
+          <form onSubmit={handleStartChallenge} className="space-y-4">
             {/* Nickname Input with Uniqueness Notice */}
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -690,25 +766,25 @@ export default function ChallengeGamePage() {
                 minLength={3}
                 maxLength={18}
                 required
-                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:bg-white focus:outline-none transition text-sm"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:bg-white focus:outline-none transition text-sm"
               />
-              <span className="text-[11px] text-slate-400 block">
+              <span className="text-[10px] text-slate-400 block">
                 Must be at least 3 characters and not taken by another player.
               </span>
             </div>
 
             {/* Avatar Picker */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
                 Select Your Avatar
               </label>
-              <div className="flex items-center justify-between gap-1.5 overflow-x-auto p-1">
+              <div className="flex items-center justify-between gap-1 overflow-x-auto p-1">
                 {AVATAR_OPTIONS.map((av) => (
                   <button
                     key={av}
                     type="button"
                     onClick={() => setAvatar(av)}
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition ${
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center text-base transition ${
                       avatar === av
                         ? "bg-indigo-600 text-white scale-110 shadow-md ring-2 ring-indigo-300"
                         : "bg-slate-100 hover:bg-slate-200"
@@ -724,32 +800,96 @@ export default function ChallengeGamePage() {
 
             <button
               type="submit"
-              className="w-full py-4 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-black text-base rounded-2xl shadow-xl shadow-indigo-600/30 transition transform active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-indigo-600/30 transition transform active:scale-95 flex items-center justify-center gap-2"
             >
               Start Challenge <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          {/* Current Leaderboard Preview */}
-          {challenge.attempts?.length > 0 && (
-            <div className="pt-4 border-t border-slate-100 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                <span>Current Leaders ({challenge.attempts.length})</span>
-                <Users className="w-3.5 h-3.5" />
-              </div>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {challenge.attempts.slice(0, 3).map((att: any, idx: number) => (
-                  <div key={att.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-xl text-xs font-bold">
-                    <span className="flex items-center gap-2">
-                      <span>{["🥇", "🥈", "🥉"][idx] || `${idx + 1}.`}</span>
-                      <span>{att.nickname}</span>
-                    </span>
-                    <span className="font-mono text-indigo-600">{att.score?.toLocaleString()} pts</span>
-                  </div>
-                ))}
-              </div>
+          {/* Standings & Ranks Section */}
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                <span>
+                  {challenge.totalQuizParticipants && challenge.totalQuizParticipants > (challenge.attempts?.length || 0)
+                    ? `Quiz Standings (${challenge.totalQuizParticipants} players)`
+                    : `Challenge Standings (${challenge.attempts?.length || 0})`}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRanksScope("all");
+                  setShowRanksModal(true);
+                }}
+                className="text-xs font-black text-indigo-600 hover:text-indigo-800 transition"
+              >
+                View All Ranks →
+              </button>
             </div>
-          )}
+
+            {(() => {
+              const previewList = (challenge.allQuizRankings && challenge.allQuizRankings.length > 0)
+                ? challenge.allQuizRankings
+                : (challenge.attempts || []);
+
+              if (previewList.length === 0) {
+                return (
+                  <div
+                    onClick={() => {
+                      setRanksScope("all");
+                      setShowRanksModal(true);
+                    }}
+                    className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-dashed border-slate-200 text-center cursor-pointer transition"
+                  >
+                    <p className="text-xs font-bold text-slate-500">
+                      🏆 No submissions yet. Be the first to play and claim #1!
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  onClick={() => {
+                    setRanksScope("all");
+                    setShowRanksModal(true);
+                  }}
+                  className="space-y-1.5 cursor-pointer group"
+                  title="Click to view full ranks and standings"
+                >
+                  {previewList.slice(0, 3).map((att: any, idx: number) => {
+                    const rankNum = att.rank || idx + 1;
+                    return (
+                      <div key={att.id || idx} className="flex items-center justify-between p-2 bg-slate-50 group-hover:bg-indigo-50/50 rounded-xl text-xs font-bold border border-slate-100 transition">
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 text-center">{["🥇", "🥈", "🥉"][idx] || `#${rankNum}`}</span>
+                          <span>{att.avatar || "🦊"}</span>
+                          <span className="font-extrabold text-slate-900 truncate max-w-[120px]">{att.nickname}</span>
+                        </span>
+                        <span className="font-mono text-indigo-600">{att.score?.toLocaleString()} pts</span>
+                      </div>
+                    );
+                  })}
+
+                  {previewList.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRanksScope("all");
+                        setShowRanksModal(true);
+                      }}
+                      className="w-full py-1.5 text-center text-xs font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100/70 rounded-lg transition"
+                    >
+                      + View all {previewList.length} participants & ranks
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 
@@ -956,7 +1096,6 @@ export default function ChallengeGamePage() {
           )}
 
           {/* 2. MULTI-SELECT (CHECKBOX) */}
-          {/* 2. MULTI_SELECT */}
           {currentQ.type === "MULTI_SELECT" && (
             <div className="shrink-0 flex flex-col justify-between space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -1192,77 +1331,492 @@ export default function ChallengeGamePage() {
         </div>
       )}
 
-      {/* 4. FINAL RESULTS & PERSISTENT CHALLENGE LEADERBOARD */}
+      {/* 4. FINAL RESULTS & TOP 3 PODIUM + PLAYER POSITION */}
       {stage === "FINISHED" && finalResult && (
-        <div className="w-full max-w-md bg-white rounded-3xl p-6 md:p-8 text-slate-900 shadow-2xl space-y-6 text-center">
-          <div className="space-y-2">
-            <span className="text-5xl block animate-bounce">🏆</span>
-            <h1 className="text-2xl font-black text-slate-900">Challenge Completed!</h1>
+        <div className="w-full max-w-md bg-white rounded-3xl p-5 sm:p-7 text-slate-900 shadow-2xl space-y-4 text-center max-h-[96vh] overflow-y-auto">
+          <div className="space-y-1.5">
+            <span className="text-4xl sm:text-5xl block animate-bounce">🏆</span>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900">Challenge Completed!</h1>
             <p className="text-xs font-semibold text-slate-500">
-              Great job, {finalResult.attempt?.nickname}! Your score has been recorded.
+              Great job, {finalResult.attempt?.nickname}! Your score and final rank have been recorded.
             </p>
           </div>
 
-          {/* Player Score Stats Card */}
-          <div className="grid grid-cols-3 gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-center">
-            <div>
-              <span className="text-xs font-bold text-slate-500 uppercase block">Score</span>
-              <span className="text-xl font-black text-indigo-600 font-mono">
-                {finalResult.attempt?.score?.toLocaleString()}
-              </span>
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-500 uppercase block">Correct</span>
-              <span className="text-xl font-black text-emerald-600">
-                {finalResult.attempt?.totalCorrect}/{finalResult.attempt?.totalQuestions}
-              </span>
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-500 uppercase block">Your Rank</span>
-              <span className="text-xl font-black text-purple-600">
-                #{finalResult.rank}
-              </span>
-            </div>
-          </div>
+          {(() => {
+            const standingsList = (finalResult.allQuizRankings && finalResult.allQuizRankings.length > 0)
+              ? finalResult.allQuizRankings
+              : (finalResult.leaderboard || []);
 
-          {/* Persistent Challenge Leaderboard Table */}
-          <div className="space-y-2 text-left">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
-              Challenge Leaderboard ({finalResult.leaderboard?.length || 1} Players)
-            </h3>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-              {finalResult.leaderboard?.map((att: any, idx: number) => {
-                const isMe = att.nickname === finalResult.attempt?.nickname;
-                return (
-                  <div
-                    key={att.id || idx}
-                    className={`flex items-center justify-between p-2.5 px-3.5 rounded-xl text-xs font-bold ${
-                      isMe
-                        ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300"
-                        : "bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="w-5 text-center font-black">
-                        {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}.`}
-                      </span>
-                      <span>{att.avatar || "🦊"}</span>
-                      <span className="truncate max-w-[120px]">{att.nickname}</span>
+            const myNick = (finalResult.attempt?.nickname || nickname || "").trim().toLowerCase();
+            const myRankIndex = standingsList.findIndex((p: any) => (p.nickname || "").trim().toLowerCase() === myNick);
+            const myOverallRank = finalResult.allQuizRank || (myRankIndex >= 0 ? (standingsList[myRankIndex].rank || myRankIndex + 1) : (finalResult.rank || 1));
+            const totalPlayersCount = finalResult.totalQuizParticipants || standingsList.length || 1;
+
+            const top3List = standingsList.slice(0, 3);
+            const isPlayerInTop3 = myRankIndex >= 0 && myRankIndex < 3;
+
+            return (
+              <>
+                {/* Player Score Stats Card with Exact Position Number */}
+                <div className="grid grid-cols-3 gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl p-3.5 text-center">
+                  <div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase block">Score</span>
+                    <span className="text-base sm:text-lg font-black text-indigo-600 font-mono">
+                      {finalResult.attempt?.score?.toLocaleString()}
                     </span>
-                    <span className="font-mono">{att.score?.toLocaleString()} pts</span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase block">Correct</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-600">
+                      {finalResult.attempt?.totalCorrect}/{finalResult.attempt?.totalQuestions}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase block">Your Position</span>
+                    <span className="text-base sm:text-lg font-black text-purple-600">
+                      #{myOverallRank} <span className="text-[10px] text-slate-400 font-bold font-sans">/ {totalPlayersCount}</span>
+                    </span>
+                  </div>
+                </div>
 
-          <div className="pt-2">
+                {/* Top 3 Podium + Player Position Section */}
+                <div className="space-y-2 text-left bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">🏆</span>
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                        Top 3 Podium
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRanksScope("all");
+                        setShowRanksModal(true);
+                      }}
+                      className="text-xs font-black text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
+                    >
+                      <span>All Standings ({totalPlayersCount})</span>
+                      <span>→</span>
+                    </button>
+                  </div>
+
+                  {/* Top 3 List */}
+                  <div className="space-y-1.5">
+                    {top3List.map((att: any, idx: number) => {
+                      const isMe = (att.nickname || "").trim().toLowerCase() === myNick;
+                      const rankNum = att.rank || idx + 1;
+                      const medalIcons = ["🥇", "🥈", "🥉"];
+
+                      return (
+                        <div
+                          key={att.id || idx}
+                          className={`flex items-center justify-between p-2.5 px-3 rounded-xl text-xs font-bold transition ${
+                            isMe
+                              ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300"
+                              : rankNum === 1
+                              ? "bg-amber-50/90 border border-amber-300 shadow-sm"
+                              : rankNum === 2
+                              ? "bg-white border border-slate-200"
+                              : "bg-amber-50/50 border border-amber-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="w-5 text-center text-sm font-black shrink-0">
+                              {medalIcons[rankNum - 1] || `#${rankNum}`}
+                            </span>
+                            <span className="w-7 h-7 rounded-lg bg-white/20 border border-black/5 flex items-center justify-center text-sm shadow-sm shrink-0">
+                              {att.avatar || "🦊"}
+                            </span>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className={`truncate max-w-[120px] ${isMe ? "text-white font-black" : "text-slate-900 font-extrabold"}`}>
+                                {att.nickname}
+                              </span>
+                              {isMe && (
+                                <span className="px-1.5 py-0.2 bg-white/25 text-white font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 pl-2">
+                            <span className={`font-mono block ${isMe ? "text-white font-black" : "text-indigo-600 font-black"}`}>
+                              {att.score?.toLocaleString()} pts
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* If player is outside top 3, show their position row */}
+                  {!isPlayerInTop3 && (
+                    <div className="pt-1.5 space-y-1.5">
+                      <div className="flex items-center justify-center gap-1 text-slate-300 font-black text-xs py-0.5">
+                        <span>•</span>
+                        <span>•</span>
+                        <span>•</span>
+                      </div>
+
+                      <div className="p-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl shadow-md ring-2 ring-indigo-300 flex items-center justify-between text-xs font-bold animate-fade-in">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="font-black text-xs sm:text-sm px-2 py-0.5 rounded-lg bg-white/20 text-white shadow-inner shrink-0">
+                            #{myOverallRank}
+                          </span>
+                          <span className="w-7 h-7 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-sm shrink-0">
+                            {finalResult.attempt?.avatar || avatar || "🦊"}
+                          </span>
+                          <div className="flex flex-col text-left truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-white truncate max-w-[110px]">
+                                {finalResult.attempt?.nickname || nickname}
+                              </span>
+                              <span className="px-1.5 py-0.2 bg-white/25 text-white font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
+                                You
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-indigo-100 font-semibold">
+                              Your Final Position
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 pl-2">
+                          <span className="font-mono font-black text-sm sm:text-base text-white block">
+                            {finalResult.attempt?.score?.toLocaleString()} pts
+                          </span>
+                          <span className="text-[10px] font-bold text-indigo-200">
+                            Rank #{myOverallRank} of {totalPlayersCount}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setRanksScope("all");
+                setShowRanksModal(true);
+              }}
+              className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 active:scale-95"
+            >
+              <Trophy className="w-4 h-4 fill-slate-950" />
+              View Complete Participant Ranks
+            </button>
             <button
               onClick={() => router.push("/explore")}
-              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
             >
               Explore More Quizzes
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🏆 COMPLETE PARTICIPANT RANKS & LEADERBOARD MODAL */}
+      {showRanksModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in text-slate-900">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-xl w-full max-h-[92vh] flex flex-col justify-between shadow-2xl space-y-3.5 border border-slate-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl font-black shadow-sm">
+                  🏆
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900">Leaderboard & Participant Ranks</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Live
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-semibold truncate max-w-[260px] sm:max-w-md">
+                    {challenge?.title || "Quiz Challenge"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRanksModal(false);
+                  setRanksSearchQuery("");
+                }}
+                className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition font-bold"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scope Switcher Tabs (All Quiz vs This Link) */}
+            {challenge?.allQuizRankings && challenge.allQuizRankings.length > 0 && (
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 shrink-0 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setRanksScope("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition shrink-0 flex items-center gap-1.5 ${
+                    ranksScope === "all"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                  }`}
+                >
+                  <span>🌟 All Quiz Participants</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    ranksScope === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {challenge.totalQuizParticipants || challenge.allQuizRankings.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRanksScope("challenge")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition shrink-0 flex items-center gap-1.5 ${
+                    ranksScope === "challenge"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                  }`}
+                >
+                  <span>🔗 This Challenge Link</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    ranksScope === "challenge" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {challenge.attempts?.length || 0}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* Metrics Ribbon */}
+            {(() => {
+              const currentList = (ranksScope === "all" && challenge?.allQuizRankings && challenge.allQuizRankings.length > 0)
+                ? challenge.allQuizRankings
+                : (challenge?.attempts || []);
+              const currentScores = currentList.map((a: any) => a.score || 0);
+              const currentTopScore = currentScores.length > 0 ? Math.max(...currentScores) : 0;
+              const currentAvgAcc = currentList.length > 0
+                ? Math.round(currentList.reduce((sum: number, a: any) => sum + (a.accuracy || 0), 0) / currentList.length)
+                : 0;
+
+              return (
+                <div className="grid grid-cols-3 gap-2 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 border border-slate-200/80 rounded-2xl p-3 shrink-0 text-center text-xs">
+                  <div>
+                    <span className="text-slate-400 block font-bold text-[10px] uppercase tracking-wider">
+                      {ranksScope === "all" ? "Total Quiz Players" : "Link Players"}
+                    </span>
+                    <span className="font-black text-slate-900 text-sm sm:text-base">
+                      {currentList.length}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-bold text-[10px] uppercase tracking-wider">Top Score</span>
+                    <span className="font-mono font-black text-emerald-600 text-sm sm:text-base">
+                      {currentTopScore.toLocaleString()} pts
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-bold text-[10px] uppercase tracking-wider">Avg Accuracy</span>
+                    <span className="font-black text-indigo-600 text-sm sm:text-base">
+                      {currentAvgAcc}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Search & Refresh Controls */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={ranksSearchQuery}
+                  onChange={(e) => setRanksSearchQuery(e.target.value)}
+                  placeholder="Search participant by nickname..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                />
+                {ranksSearchQuery && (
+                  <button
+                    onClick={() => setRanksSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={refreshRanksData}
+                disabled={isRefreshingRanks}
+                title="Refresh Standings"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-slate-200"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingRanks ? "animate-spin text-indigo-600" : ""}`} />
+                <span className="hidden sm:inline">{isRefreshingRanks ? "Refreshing..." : "Refresh"}</span>
+              </button>
+            </div>
+
+            {/* Participant Rankings List */}
+            <div className="flex-1 flex flex-col space-y-2 min-h-0 overflow-y-auto pr-1">
+              {(() => {
+                const list = (ranksScope === "all" && challenge?.allQuizRankings && challenge.allQuizRankings.length > 0)
+                  ? challenge.allQuizRankings
+                  : (challenge?.attempts || []);
+                const filtered = ranksSearchQuery.trim()
+                  ? list.filter((p: any) =>
+                      (p.nickname || "").toLowerCase().includes(ranksSearchQuery.trim().toLowerCase())
+                    )
+                  : list;
+
+                if (list.length === 0) {
+                  return (
+                    <div className="py-12 text-center space-y-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto p-4">
+                      <span className="text-3xl block">🎯</span>
+                      <p className="text-sm font-black text-slate-900">No participants yet</p>
+                      <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                        Enter your nickname on the home screen and complete the quiz to claim the #1 rank!
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="py-10 text-center space-y-1 bg-slate-50 rounded-2xl border border-slate-100 my-auto">
+                      <p className="text-xs font-bold text-slate-500">No participants matching &quot;{ranksSearchQuery}&quot;</p>
+                      <button
+                        onClick={() => setRanksSearchQuery("")}
+                        className="text-xs text-indigo-600 font-bold hover:underline"
+                      >
+                        Clear search filter
+                      </button>
+                    </div>
+                  );
+                }
+
+                return filtered.map((p: any, idx: number) => {
+                  const originalRank = list.findIndex((x: any) => x.id === p.id) + 1;
+                  const rankNum = p.rank || (originalRank > 0 ? originalRank : idx + 1);
+                  const isCurrentPlayer = nickname && p.nickname?.toLowerCase() === nickname.trim().toLowerCase();
+
+                  const medalIcons = ["🥇", "🥈", "🥉"];
+                  const isTop3 = rankNum <= 3;
+
+                  return (
+                    <div
+                      key={p.id || idx}
+                      className={`p-3 rounded-2xl border flex items-center justify-between transition ${
+                        isCurrentPlayer
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300"
+                          : isTop3
+                          ? rankNum === 1
+                            ? "bg-amber-50/90 border-amber-300 shadow-sm"
+                            : rankNum === 2
+                            ? "bg-slate-50 border-slate-200"
+                            : "bg-amber-50/50 border-amber-200"
+                          : "bg-white border-slate-100 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {/* Position Badge */}
+                        <div className="flex items-center justify-center shrink-0 w-8">
+                          {isTop3 ? (
+                            <span className="text-xl" title={`Rank ${rankNum}`}>
+                              {medalIcons[rankNum - 1]}
+                            </span>
+                          ) : (
+                            <span className={`font-black text-xs sm:text-sm px-2 py-0.5 rounded-lg ${
+                              isCurrentPlayer ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              #{rankNum}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Avatar */}
+                        <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-sm shrink-0 border ${
+                          isCurrentPlayer ? "bg-white/20 border-white/30" : "bg-white border-slate-200"
+                        }`}>
+                          {p.avatar || "🦊"}
+                        </span>
+
+                        {/* Nickname & Sub-stats */}
+                        <div className="flex flex-col min-w-0 flex-1 text-left">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`font-black text-xs sm:text-sm truncate ${
+                              isCurrentPlayer ? "text-white" : "text-slate-900"
+                            }`}>
+                              {p.nickname}
+                            </span>
+                            {isCurrentPlayer && (
+                              <span className="px-1.5 py-0.2 bg-white/25 text-white font-extrabold text-[9px] rounded-md uppercase tracking-wider">
+                                You
+                              </span>
+                            )}
+                            {ranksScope === "all" && p.challengeTitle && (
+                              <span className={`px-1.5 py-0.2 font-extrabold text-[9px] rounded-md uppercase tracking-wider border ${
+                                isCurrentPlayer
+                                  ? "bg-white/20 text-white border-white/30"
+                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                              }`}>
+                                {p.challengeTitle}
+                              </span>
+                            )}
+                          </div>
+                          <span className={`text-[10px] font-semibold ${
+                            isCurrentPlayer ? "text-indigo-100" : "text-slate-400"
+                          }`}>
+                            {p.totalCorrect !== undefined ? `${p.totalCorrect}/${p.totalQuestions || challenge?.quiz?.questions?.length || 0} correct` : ""}
+                            {p.accuracy !== undefined ? ` • ${p.accuracy}% acc` : ""}
+                            {p.completedAt ? ` • ${new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Score Points */}
+                      <div className="text-right shrink-0 pl-2">
+                        <span className={`font-mono font-black text-sm sm:text-base block ${
+                          isCurrentPlayer ? "text-white" : "text-indigo-600"
+                        }`}>
+                          {p.score?.toLocaleString()} pts
+                        </span>
+                        <span className={`text-[10px] font-bold ${
+                          isCurrentPlayer ? "text-indigo-200" : "text-slate-400"
+                        }`}>
+                          Rank #{rankNum}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-400 font-medium">
+                {(() => {
+                  const currentList = (ranksScope === "all" && challenge?.allQuizRankings && challenge.allQuizRankings.length > 0)
+                    ? challenge.allQuizRankings
+                    : (challenge?.attempts || []);
+                  return `${currentList.length} total ${currentList.length === 1 ? "participant" : "participants"} recorded`;
+                })()}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRanksModal(false);
+                  setRanksSearchQuery("");
+                }}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow transition"
+              >
+                Close Standings
+              </button>
+            </div>
           </div>
         </div>
       )}

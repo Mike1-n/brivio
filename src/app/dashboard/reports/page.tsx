@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { BarChart3, Users, Trophy, Clock, Award, Link2, ExternalLink, ChevronRight, CheckCircle2 } from "lucide-react";
+import { BarChart3, Users, Trophy, Clock, Award, Link2, ExternalLink, ChevronRight, CheckCircle2, Search, Copy, Check } from "lucide-react";
 
 export default function ReportsPage() {
   const [stats, setStats] = useState<any>({
@@ -16,6 +16,8 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<"live" | "challenges">("challenges");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedChallenge, setSelectedChallenge] = useState<any | null>(null);
+  const [ranksSearchQuery, setRanksSearchQuery] = useState("");
+  const [copiedChallengeId, setCopiedChallengeId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -277,25 +279,33 @@ export default function ReportsPage() {
 
       {/* CHALLENGE PARTICIPANT RANKS & LEADERBOARD MODAL */}
       {selectedChallenge && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-5 sm:p-7 text-slate-900 max-w-2xl w-full max-h-[90vh] flex flex-col justify-between shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 text-slate-900 max-w-2xl w-full max-h-[90vh] flex flex-col justify-between shadow-2xl space-y-4 border border-slate-100">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl font-black">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl font-black shadow-sm">
                   🏆
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">
-                    {selectedChallenge.quizTitle}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900">
+                      {selectedChallenge.quizTitle}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Report
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 font-medium">
                     Leaderboard & Complete Participant Ranks
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedChallenge(null)}
+                onClick={() => {
+                  setSelectedChallenge(null);
+                  setRanksSearchQuery("");
+                }}
                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
               >
                 ✕
@@ -326,61 +336,127 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Rankings List */}
-            <div className="flex-1 flex flex-col space-y-2 min-h-0 overflow-y-auto pr-1">
-              {(!selectedChallenge.rankings || selectedChallenge.rankings.length === 0) ? (
-                <div className="py-12 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto">
-                  No player submissions recorded for this challenge yet.
-                </div>
-              ) : (
-                selectedChallenge.rankings.map((p: any, idx: number) => {
-                  const medalIcons = ["🥇", "🥈", "🥉"];
-                  return (
-                    <div
-                      key={p.id || idx}
-                      className={`p-3 rounded-2xl border flex items-center justify-between transition ${
-                        idx === 0
-                          ? "bg-amber-50/80 border-amber-200 shadow-sm"
-                          : idx === 1
-                          ? "bg-slate-50 border-slate-200"
-                          : idx === 2
-                          ? "bg-amber-50/40 border-amber-100"
-                          : "bg-white border-slate-100 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="font-black text-sm w-6 text-center shrink-0 text-slate-700">
-                          {idx < 3 ? medalIcons[idx] : `#${idx + 1}`}
-                        </span>
-                        <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-sm shrink-0">
-                          {p.avatar || "🦊"}
-                        </span>
-                        <div className="flex flex-col min-w-0 flex-1 text-left">
-                          <span className="font-black text-sm text-slate-900 truncate">
-                            {p.nickname}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-semibold">
-                            {p.totalCorrect !== undefined ? `${p.totalCorrect}/${p.totalQuestions || selectedChallenge.totalQuestions} correct` : ""}
-                            {p.completedAt ? ` • ${new Date(p.completedAt).toLocaleDateString()} ${new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
-                          </span>
-                        </div>
-                      </div>
+            {/* Search Filter & Share Header */}
+            {(() => {
+              const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "";
+              const shareUrl = `${origin}/challenge/${selectedChallenge.id}`;
+              const ranks = selectedChallenge.rankings || [];
+              const filteredRanks = ranksSearchQuery.trim()
+                ? ranks.filter((p: any) =>
+                    (p.nickname || "").toLowerCase().includes(ranksSearchQuery.trim().toLowerCase())
+                  )
+                : ranks;
 
-                      <div className="text-right shrink-0">
-                        <span className="font-mono font-black text-base text-indigo-600 block">
-                          {p.score?.toLocaleString()} pts
-                        </span>
-                        {p.accuracy !== undefined && (
-                          <span className="text-[11px] font-bold text-slate-500">
-                            {p.accuracy}% accuracy
-                          </span>
-                        )}
-                      </div>
+              return (
+                <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={ranksSearchQuery}
+                        onChange={(e) => setRanksSearchQuery(e.target.value)}
+                        placeholder="Search participant by nickname..."
+                        className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                      />
+                      {ranksSearchQuery && (
+                        <button
+                          onClick={() => setRanksSearchQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
-                  );
-                })
-              )}
-            </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareUrl);
+                        setCopiedChallengeId(selectedChallenge.id);
+                        setTimeout(() => setCopiedChallengeId(null), 2500);
+                      }}
+                      className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-indigo-200 shrink-0"
+                      title="Copy Challenge Link"
+                    >
+                      {copiedChallengeId === selectedChallenge.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Rankings List */}
+                  <div className="flex-1 flex flex-col space-y-1.5 min-h-0 overflow-y-auto pr-1">
+                    {ranks.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto">
+                        No player submissions recorded for this challenge yet.
+                      </div>
+                    ) : filteredRanks.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-slate-100 my-auto">
+                        No participants matching &quot;{ranksSearchQuery}&quot;.
+                      </div>
+                    ) : (
+                      filteredRanks.map((p: any, idx: number) => {
+                        const originalRank = ranks.findIndex((x: any) => x.id === p.id) + 1;
+                        const rankNum = p.rank || (originalRank > 0 ? originalRank : idx + 1);
+                        const medalIcons = ["🥇", "🥈", "🥉"];
+                        const isTop3 = rankNum <= 3;
+
+                        return (
+                          <div
+                            key={p.id || idx}
+                            className={`p-3 rounded-2xl border flex items-center justify-between transition ${
+                              isTop3
+                                ? rankNum === 1
+                                  ? "bg-amber-50/80 border-amber-200 shadow-sm"
+                                  : rankNum === 2
+                                  ? "bg-slate-50 border-slate-200"
+                                  : "bg-amber-50/40 border-amber-100"
+                                : "bg-white border-slate-100 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span className="font-black text-sm w-7 text-center shrink-0 text-slate-700">
+                                {isTop3 ? medalIcons[rankNum - 1] : `#${rankNum}`}
+                              </span>
+                              <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-sm shrink-0">
+                                {p.avatar || "🦊"}
+                              </span>
+                              <div className="flex flex-col min-w-0 flex-1 text-left">
+                                <span className="font-black text-sm text-slate-900 truncate">
+                                  {p.nickname}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-semibold">
+                                  {p.totalCorrect !== undefined ? `${p.totalCorrect}/${p.totalQuestions || selectedChallenge.totalQuestions} correct` : ""}
+                                  {p.completedAt ? ` • ${new Date(p.completedAt).toLocaleDateString()} ${new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 pl-2">
+                              <span className="font-mono font-black text-base text-indigo-600 block">
+                                {p.score?.toLocaleString()} pts
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                Rank #{rankNum} {p.accuracy !== undefined ? `• ${p.accuracy}% acc` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Modal Footer */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
@@ -388,7 +464,10 @@ export default function ReportsPage() {
                 Official participant rankings for this challenge
               </span>
               <button
-                onClick={() => setSelectedChallenge(null)}
+                onClick={() => {
+                  setSelectedChallenge(null);
+                  setRanksSearchQuery("");
+                }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
               >
                 Close

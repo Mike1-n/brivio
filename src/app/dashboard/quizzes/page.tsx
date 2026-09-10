@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Play, Edit3, Copy, Trash2, BookOpen, Clock, Users } from "lucide-react";
+import { Plus, Play, Edit3, Copy, Trash2, BookOpen, Clock, Users, Search, Trophy, Link2, Check, RefreshCw } from "lucide-react";
 import SafeImage from "@/components/SafeImage";
 
 export default function MyQuizzesPage() {
@@ -22,8 +22,12 @@ export default function MyQuizzesPage() {
   // Standings / Ranks modal for non-hosted / challenge quizzes
   const [ranksModalQuiz, setRanksModalQuiz] = useState<any | null>(null);
   const [quizChallenges, setQuizChallenges] = useState<any[]>([]);
+  const [combinedChallenge, setCombinedChallenge] = useState<any | null>(null);
+  const [liveSessions, setLiveSessions] = useState<any[]>([]);
   const [loadingChallenges, setLoadingChallenges] = useState(false);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
+  const [ranksSearchQuery, setRanksSearchQuery] = useState("");
+  const [copiedChallengeId, setCopiedChallengeId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQuizzes();
@@ -32,19 +36,31 @@ export default function MyQuizzesPage() {
   const handleOpenRanksModal = async (quiz: any) => {
     setRanksModalQuiz(quiz);
     setLoadingChallenges(true);
+    setRanksSearchQuery("");
     try {
       const res = await fetch(`/api/challenges?quizId=${quiz.id}`);
       const data = await res.json();
       const list = data.challenges || [];
+      const combined = data.combinedChallenge || null;
+      const live = data.liveSessions || [];
       setQuizChallenges(list);
-      if (list.length > 0) {
+      setCombinedChallenge(combined);
+      setLiveSessions(live);
+
+      if (combined && (list.length > 1 || combined.totalParticipants > (list[0]?.totalParticipants || 0))) {
+        setSelectedChallengeId("all-combined");
+      } else if (list.length > 0) {
         setSelectedChallengeId(list[0].id);
+      } else if (live.length > 0) {
+        setSelectedChallengeId("live-games");
       } else {
         setSelectedChallengeId(null);
       }
     } catch (err) {
       console.error("Failed to load quiz challenges:", err);
       setQuizChallenges([]);
+      setCombinedChallenge(null);
+      setLiveSessions([]);
     } finally {
       setLoadingChallenges(false);
     }
@@ -298,23 +314,31 @@ export default function MyQuizzesPage() {
 
       {/* CHALLENGE STANDINGS & PLAYER RANKS MODAL */}
       {ranksModalQuiz && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-5 sm:p-7 text-slate-900 max-w-2xl w-full max-h-[90vh] flex flex-col justify-between shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 text-slate-900 max-w-2xl w-full max-h-[90vh] flex flex-col justify-between shadow-2xl space-y-4 border border-slate-100">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl font-black">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl font-black shadow-sm">
                   🏆
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Challenge Leaderboards & Player Ranks</h2>
-                  <p className="text-xs text-slate-500 font-medium">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900">Challenge Leaderboards & Participant Ranks</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Live
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium truncate max-w-md">
                     {ranksModalQuiz.title}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setRanksModalQuiz(null)}
+                onClick={() => {
+                  setRanksModalQuiz(null);
+                  setRanksSearchQuery("");
+                }}
                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
               >
                 ✕
@@ -324,7 +348,7 @@ export default function MyQuizzesPage() {
             {/* Modal Body */}
             {loadingChallenges ? (
               <div className="py-16 text-center text-slate-400 font-bold animate-pulse text-sm">
-                Loading challenge leaderboards and scores...
+                Loading challenge leaderboards and participant ranks...
               </div>
             ) : quizChallenges.length === 0 ? (
               <div className="py-12 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-100 p-6 my-auto">
@@ -337,90 +361,133 @@ export default function MyQuizzesPage() {
                   onClick={() => {
                     const q = ranksModalQuiz;
                     setRanksModalQuiz(null);
+                    setRanksSearchQuery("");
                     handleOpenChallengeModal(q);
                   }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition inline-flex items-center gap-1.5"
                 >
-                  Create Challenge Link Now
+                  <Link2 className="w-3.5 h-3.5" />
+                  <span>Create Challenge Link Now</span>
                 </button>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col space-y-4 min-h-0 overflow-hidden">
-                {/* Challenge Selector tabs if multiple */}
-                {quizChallenges.length > 1 && (
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0">
+              <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
+                {/* Challenge Selector tabs */}
+                {(quizChallenges.length > 1 || liveSessions.length > 0) && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0">
+                    {combinedChallenge && (
+                      <button
+                        key="all-combined"
+                        onClick={() => setSelectedChallengeId("all-combined")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition shrink-0 flex items-center gap-1.5 ${
+                          selectedChallengeId === "all-combined"
+                            ? "bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300"
+                            : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                        }`}
+                      >
+                        <span>🌟 All Combined</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          selectedChallengeId === "all-combined" ? "bg-white/25 text-white" : "bg-indigo-200/80 text-indigo-900"
+                        }`}>
+                          {combinedChallenge.totalParticipants} players
+                        </span>
+                      </button>
+                    )}
+
                     {quizChallenges.map((c, i) => (
                       <button
                         key={c.id}
                         onClick={() => setSelectedChallengeId(c.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                           selectedChallengeId === c.id
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
                         }`}
                       >
-                        Challenge #{i + 1} ({c.totalParticipants} {c.totalParticipants === 1 ? "player" : "players"})
+                        <span>Challenge #{i + 1}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          selectedChallengeId === c.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {c.totalParticipants}
+                        </span>
                       </button>
                     ))}
+
+                    {liveSessions.length > 0 && (
+                      <button
+                        key="live-games"
+                        onClick={() => setSelectedChallengeId("live-games")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
+                          selectedChallengeId === "live-games"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                        }`}
+                      >
+                        <span>🎮 Live Host Games</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          selectedChallengeId === "live-games" ? "bg-white/20 text-white" : "bg-emerald-200 text-emerald-900"
+                        }`}>
+                          {liveSessions.reduce((sum, s) => sum + s.totalPlayers, 0)} players
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {(() => {
-                  const activeChallenge = quizChallenges.find((c) => c.id === selectedChallengeId) || quizChallenges[0];
-                  if (!activeChallenge) return null;
+                  if (selectedChallengeId === "live-games") {
+                    const allLivePlayers = liveSessions.flatMap((s) =>
+                      (s.players || []).map((p: any) => ({ ...p, sessionPin: s.pin, sessionStatus: s.status }))
+                    );
+                    allLivePlayers.sort((a, b) => (b.score || 0) - (a.score || 0));
+                    const filteredLive = ranksSearchQuery.trim()
+                      ? allLivePlayers.filter((p: any) => (p.nickname || "").toLowerCase().includes(ranksSearchQuery.trim().toLowerCase()))
+                      : allLivePlayers;
 
-                  const isExpired = activeChallenge.isExpired;
-                  const ranks = activeChallenge.rankings || [];
-
-                  return (
-                    <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
-                      {/* Challenge Summary Stats Card */}
-                      <div className="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-3 shrink-0 text-center text-xs">
-                        <div>
-                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Participants</span>
-                          <span className="font-black text-slate-900 text-sm">{activeChallenge.totalParticipants}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Highest Score</span>
-                          <span className="font-mono font-black text-emerald-600 text-sm">{activeChallenge.highestScore?.toLocaleString()} pts</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Status</span>
-                          <span className={`inline-block font-extrabold text-[11px] px-2 py-0.5 rounded-full ${
-                            isExpired ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800"
-                          }`}>
-                            {isExpired ? "Closed" : "Active"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Ranked Leaderboard Table */}
-                      <div className="flex-1 flex flex-col space-y-1.5 min-h-0 overflow-y-auto pr-1">
-                        {ranks.length === 0 ? (
-                          <div className="py-10 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto">
-                            No players have submitted answers for this challenge yet.
+                    return (
+                      <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
+                        <div className="grid grid-cols-3 gap-2 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 shrink-0 text-center text-xs">
+                          <div>
+                            <span className="text-emerald-600 block font-semibold text-[10px] uppercase">Live Sessions</span>
+                            <span className="font-black text-slate-900 text-sm">{liveSessions.length}</span>
                           </div>
-                        ) : (
-                          ranks.map((p: any, idx: number) => {
-                            const medalIcons = ["🥇", "🥈", "🥉"];
-                            return (
-                              <div
-                                key={p.id || idx}
-                                className={`p-2.5 sm:p-3 rounded-2xl border flex items-center justify-between transition ${
-                                  idx === 0
-                                    ? "bg-amber-50/80 border-amber-200 shadow-sm"
-                                    : idx === 1
-                                    ? "bg-slate-50 border-slate-200"
-                                    : idx === 2
-                                    ? "bg-amber-50/40 border-amber-100"
-                                    : "bg-white border-slate-100 hover:bg-slate-50"
-                                }`}
-                              >
+                          <div>
+                            <span className="text-emerald-600 block font-semibold text-[10px] uppercase">Total Players</span>
+                            <span className="font-black text-slate-900 text-sm">{allLivePlayers.length}</span>
+                          </div>
+                          <div>
+                            <span className="text-emerald-600 block font-semibold text-[10px] uppercase">Top Live Score</span>
+                            <span className="font-mono font-black text-emerald-700 text-sm">
+                              {allLivePlayers.length > 0 ? `${Math.max(...allLivePlayers.map(p => p.score || 0)).toLocaleString()} pts` : "0 pts"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Search Bar */}
+                        <div className="relative shrink-0">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={ranksSearchQuery}
+                            onChange={(e) => setRanksSearchQuery(e.target.value)}
+                            placeholder="Filter live participant by nickname..."
+                            className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                          />
+                        </div>
+
+                        <div className="flex-1 flex flex-col space-y-1.5 min-h-0 overflow-y-auto pr-1">
+                          {filteredLive.length === 0 ? (
+                            <div className="py-8 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-slate-100 my-auto">
+                              No live players found.
+                            </div>
+                          ) : (
+                            filteredLive.map((p: any, idx: number) => (
+                              <div key={p.id || idx} className="p-2.5 sm:p-3 rounded-2xl border bg-white border-slate-100 flex items-center justify-between">
                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                  <span className="font-black text-sm w-6 text-center shrink-0 text-slate-700">
-                                    {idx < 3 ? medalIcons[idx] : `#${idx + 1}`}
+                                  <span className="font-black text-sm w-7 text-center shrink-0 text-slate-700">
+                                    #{idx + 1}
                                   </span>
-                                  <span className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-sm shrink-0">
+                                  <span className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-lg shadow-sm shrink-0">
                                     {p.avatar || "🦊"}
                                   </span>
                                   <div className="flex flex-col min-w-0 flex-1 text-left">
@@ -428,21 +495,182 @@ export default function MyQuizzesPage() {
                                       {p.nickname}
                                     </span>
                                     <span className="text-[10px] text-slate-400 font-semibold">
+                                      PIN {p.sessionPin} • {p.sessionStatus}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="font-mono font-black text-sm text-emerald-600 block">
+                                    {p.score?.toLocaleString()} pts
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const activeChallenge = selectedChallengeId === "all-combined"
+                    ? combinedChallenge
+                    : (quizChallenges.find((c) => c.id === selectedChallengeId) || combinedChallenge || quizChallenges[0]);
+
+                  if (!activeChallenge) return null;
+
+                  const isCombined = selectedChallengeId === "all-combined" || activeChallenge.id === "all-combined";
+                  const isExpired = activeChallenge.isExpired;
+                  const ranks = activeChallenge.rankings || [];
+                  const filteredRanks = ranksSearchQuery.trim()
+                    ? ranks.filter((p: any) =>
+                        (p.nickname || "").toLowerCase().includes(ranksSearchQuery.trim().toLowerCase())
+                      )
+                    : ranks;
+
+                  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "";
+                  const shareUrl = isCombined ? "" : `${origin}/challenge/${activeChallenge.id}`;
+
+                  return (
+                    <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
+                      {/* Challenge Summary Stats Card */}
+                      <div className="grid grid-cols-4 gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-3 shrink-0 text-center text-xs">
+                        <div>
+                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">
+                            {isCombined ? "Total Players" : "Participants"}
+                          </span>
+                          <span className="font-black text-slate-900 text-sm">{activeChallenge.totalParticipants}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Top Score</span>
+                          <span className="font-mono font-black text-emerald-600 text-sm">{activeChallenge.highestScore?.toLocaleString()} pts</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Avg Accuracy</span>
+                          <span className="font-black text-indigo-600 text-sm">{activeChallenge.avgAccuracy || 0}%</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Scope</span>
+                          <span className={`inline-block font-extrabold text-[11px] px-2 py-0.5 rounded-full ${
+                            isCombined
+                              ? "bg-indigo-100 text-indigo-800"
+                              : isExpired
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}>
+                            {isCombined ? "All Links" : isExpired ? "Closed" : "Active"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Search Bar & Copy Link Header */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="relative flex-1">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={ranksSearchQuery}
+                            onChange={(e) => setRanksSearchQuery(e.target.value)}
+                            placeholder="Filter participant by nickname..."
+                            className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                          />
+                          {ranksSearchQuery && (
+                            <button
+                              onClick={() => setRanksSearchQuery("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {!isCombined && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(shareUrl);
+                              setCopiedChallengeId(activeChallenge.id);
+                              setTimeout(() => setCopiedChallengeId(null), 2500);
+                            }}
+                            className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-indigo-200 shrink-0"
+                            title="Copy Challenge URL"
+                          >
+                            {copiedChallengeId === activeChallenge.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy Link</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Ranked Leaderboard Table */}
+                      <div className="flex-1 flex flex-col space-y-1.5 min-h-0 overflow-y-auto pr-1">
+                        {ranks.length === 0 ? (
+                          <div className="py-10 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto">
+                            No players have submitted answers for this challenge yet. Share the link to invite participants!
+                          </div>
+                        ) : filteredRanks.length === 0 ? (
+                          <div className="py-8 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-slate-100 my-auto">
+                            No participants matching &quot;{ranksSearchQuery}&quot;.
+                          </div>
+                        ) : (
+                          filteredRanks.map((p: any, idx: number) => {
+                            const originalRank = ranks.findIndex((x: any) => x.id === p.id) + 1;
+                            const rankNum = p.rank || (originalRank > 0 ? originalRank : idx + 1);
+                            const medalIcons = ["🥇", "🥈", "🥉"];
+                            const isTop3 = rankNum <= 3;
+
+                            return (
+                              <div
+                                key={p.id || idx}
+                                className={`p-2.5 sm:p-3 rounded-2xl border flex items-center justify-between transition ${
+                                  isTop3
+                                    ? rankNum === 1
+                                      ? "bg-amber-50/80 border-amber-200 shadow-sm"
+                                      : rankNum === 2
+                                      ? "bg-slate-50 border-slate-200"
+                                      : "bg-amber-50/40 border-amber-100"
+                                    : "bg-white border-slate-100 hover:bg-slate-50"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <span className="font-black text-sm w-7 text-center shrink-0 text-slate-700">
+                                    {isTop3 ? medalIcons[rankNum - 1] : `#${rankNum}`}
+                                  </span>
+                                  <span className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-sm shrink-0">
+                                    {p.avatar || "🦊"}
+                                  </span>
+                                  <div className="flex flex-col min-w-0 flex-1 text-left">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-black text-xs sm:text-sm text-slate-900 truncate">
+                                        {p.nickname}
+                                      </span>
+                                      {isCombined && p.challengeTitle && (
+                                        <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 text-slate-600 font-extrabold text-[9px] rounded-md uppercase tracking-wider">
+                                          {p.challengeTitle}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-semibold">
                                       {p.totalCorrect !== undefined ? `${p.totalCorrect}/${p.totalQuestions || activeChallenge.totalQuestions} correct` : ""}
                                       {p.completedAt ? ` • ${new Date(p.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
                                     </span>
                                   </div>
                                 </div>
 
-                                <div className="text-right shrink-0">
+                                <div className="text-right shrink-0 pl-2">
                                   <span className="font-mono font-black text-sm text-indigo-600 block">
                                     {p.score?.toLocaleString()} pts
                                   </span>
-                                  {p.accuracy !== undefined && (
-                                    <span className="text-[10px] font-bold text-slate-500">
-                                      {p.accuracy}% accuracy
-                                    </span>
-                                  )}
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    Rank #{rankNum} {p.accuracy !== undefined ? `• ${p.accuracy}% acc` : ""}
+                                  </span>
                                 </div>
                               </div>
                             );
@@ -458,10 +686,13 @@ export default function MyQuizzesPage() {
             {/* Modal Footer */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
               <span className="text-xs text-slate-400 font-medium">
-                Real-time participant leaderboard for self-paced challenges
+                Live participant leaderboard and rankings
               </span>
               <button
-                onClick={() => setRanksModalQuiz(null)}
+                onClick={() => {
+                  setRanksModalQuiz(null);
+                  setRanksSearchQuery("");
+                }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
               >
                 Close

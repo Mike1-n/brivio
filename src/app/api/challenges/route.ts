@@ -114,7 +114,95 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ challenges: formatted });
+    // If quizIdParam is provided or multiple challenges exist, compute combined rankings
+    const allQuizAttempts: any[] = [];
+    challenges.forEach((c: any) => {
+      (c.attempts || []).forEach((att: any) => {
+        allQuizAttempts.push({
+          ...att,
+          challengeId: c.id,
+          challengeTitle: c.title || `Challenge #${c.id.substring(0, 4)}`,
+        });
+      });
+    });
+
+    allQuizAttempts.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    const combinedSeen = new Set<string>();
+    const combinedUniqueAttempts: any[] = [];
+    for (const att of allQuizAttempts) {
+      const lower = att.nickname.toLowerCase();
+      if (!combinedSeen.has(lower)) {
+        combinedSeen.add(lower);
+        combinedUniqueAttempts.push({
+          ...att,
+          rank: combinedUniqueAttempts.length + 1,
+        });
+      }
+    }
+
+    const combinedScores = combinedUniqueAttempts.map((a) => a.score || 0);
+    const combinedTotal = combinedUniqueAttempts.length;
+    const combinedHighest = combinedTotal > 0 ? Math.max(...combinedScores) : 0;
+    const combinedAvgScore = combinedTotal > 0 ? Math.round(combinedScores.reduce((a, b) => a + b, 0) / combinedTotal) : 0;
+    const combinedAvgAcc = combinedTotal > 0
+      ? Math.round(combinedUniqueAttempts.reduce((a, b) => a + (b.accuracy || 0), 0) / combinedTotal)
+      : 0;
+
+    const combinedChallenge = {
+      id: "all-combined",
+      title: "All Challenges Combined",
+      quizId: quizIdParam || "",
+      quizTitle: challenges[0]?.quiz?.title || "Quiz",
+      totalParticipants: combinedTotal,
+      highestScore: combinedHighest,
+      avgScore: combinedAvgScore,
+      avgAccuracy: combinedAvgAcc,
+      rankings: combinedUniqueAttempts,
+      isExpired: false,
+    };
+
+    // Also fetch live sessions for this quiz if quizIdParam is provided
+    let liveSessionData: any[] = [];
+    if (quizIdParam) {
+      try {
+        const liveSessions = await prisma.gameSession.findMany({
+          where: { quizId: quizIdParam },
+          include: {
+            players: {
+              orderBy: { score: "desc" },
+              select: {
+                id: true,
+                nickname: true,
+                avatar: true,
+                score: true,
+                rank: true,
+                streak: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        liveSessionData = liveSessions.map((s: any) => ({
+          id: s.id,
+          pin: s.pin,
+          status: s.status,
+          totalPlayers: s.players?.length || 0,
+          players: s.players || [],
+          createdAt: s.createdAt,
+        }));
+      } catch (err) {
+        console.error("Failed to fetch live sessions for quiz:", err);
+      }
+    }
+
+    return NextResponse.json({
+      challenges: formatted,
+      combinedChallenge,
+      liveSessions: liveSessionData,
+    });
   } catch (error) {
     console.error("Fetch host challenges error:", error);
     return NextResponse.json({ error: "Failed to fetch challenges" }, { status: 500 });

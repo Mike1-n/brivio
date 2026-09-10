@@ -121,7 +121,7 @@ export async function POST(
       },
     });
 
-    // 4. Return updated deduplicated leaderboard
+    // 4. Return updated deduplicated leaderboard for this challenge
     const allAttempts = await (prisma as any).challengeAttempt.findMany({
       where: { challengeId },
       orderBy: { score: "desc" },
@@ -144,17 +144,71 @@ export async function POST(
       const lower = att.nickname.toLowerCase();
       if (!seenNicks.has(lower)) {
         seenNicks.add(lower);
-        uniqueLeaderboard.push(att);
+        uniqueLeaderboard.push({
+          ...att,
+          rank: uniqueLeaderboard.length + 1,
+        });
       }
     }
 
     const rank = uniqueLeaderboard.findIndex((a: any) => a.nickname.toLowerCase() === cleanNick.toLowerCase()) + 1;
+
+    // 5. Fetch all quiz attempts across all challenges for this quiz
+    const allChallengesForQuiz = await (prisma as any).quizChallenge.findMany({
+      where: { quizId: challenge.quizId, isActive: true },
+      include: {
+        attempts: {
+          orderBy: { score: "desc" },
+          select: {
+            id: true,
+            nickname: true,
+            avatar: true,
+            score: true,
+            accuracy: true,
+            totalCorrect: true,
+            totalQuestions: true,
+            completedAt: true,
+          },
+        },
+      },
+    });
+
+    const allQuizAttempts: any[] = [];
+    allChallengesForQuiz.forEach((c: any) => {
+      (c.attempts || []).forEach((att: any) => {
+        allQuizAttempts.push({
+          ...att,
+          challengeId: c.id,
+          challengeTitle: c.title || "Challenge",
+        });
+      });
+    });
+
+    allQuizAttempts.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    const allSeen = new Set<string>();
+    const allUniqueQuizAttempts: any[] = [];
+    for (const att of allQuizAttempts) {
+      const lower = att.nickname.toLowerCase();
+      if (!allSeen.has(lower)) {
+        allSeen.add(lower);
+        allUniqueQuizAttempts.push({
+          ...att,
+          rank: allUniqueQuizAttempts.length + 1,
+        });
+      }
+    }
+
+    const allQuizRank = allUniqueQuizAttempts.findIndex((a: any) => a.nickname.toLowerCase() === cleanNick.toLowerCase()) + 1;
 
     return NextResponse.json({
       attempt,
       rank: rank > 0 ? rank : 1,
       totalParticipants: uniqueLeaderboard.length,
       leaderboard: uniqueLeaderboard,
+      allQuizRank: allQuizRank > 0 ? allQuizRank : rank,
+      allQuizRankings: allUniqueQuizAttempts,
+      totalQuizParticipants: allUniqueQuizAttempts.length,
     });
   } catch (error) {
     console.error("Submit challenge attempt error:", error);
