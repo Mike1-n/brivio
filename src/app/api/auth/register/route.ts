@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword, signToken } from "@/lib/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { validatePasswordStrength, sanitizePlainText } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Rate Limit Registration Attempts: 5 per minute per IP
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`register_${clientIp}`, { limit: 5, windowMs: 60 * 1000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Too many registration attempts. Please wait 1 minute before trying again." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+
     const body = await req.json();
     const { email, name, password, role = "TEACHER" } = body;
 
@@ -11,8 +23,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 });
     }
 
+    // 2. Validate Password Strength
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.valid) {
+      return NextResponse.json({ error: passwordCheck.error }, { status: 400 });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = sanitizePlainText(name, 50);
+
+    if (!cleanEmail.includes("@") || cleanEmail.length > 254) {
+      return NextResponse.json({ error: "Please provide a valid email address" }, { status: 400 });
+    }
+
+    if (!cleanName || cleanName.length < 2) {
+      return NextResponse.json({ error: "Name must be at least 2 characters long" }, { status: 400 });
+    }
+
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: cleanEmail },
     });
 
     if (existingUser) {
@@ -22,8 +51,8 @@ export async function POST(req: NextRequest) {
     const passwordHash = hashPassword(password);
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase().trim(),
-        name: name.trim(),
+        email: cleanEmail,
+        name: cleanName,
         passwordHash,
         role: role === "ADMIN" ? "ADMIN" : "TEACHER",
         avatar: "🎓",

@@ -7,7 +7,7 @@ import confetti from "canvas-confetti";
 import { soundEffects } from "@/lib/soundEffects";
 import SafeImage from "@/components/SafeImage";
 
-const AVATAR_OPTIONS = ["🦁", "🦊", "🚀", "💎", "⚡", "🐼", "🦄", "🎯", "🎓", "🌟"];
+const AVATAR_OPTIONS = ["🦁", "🦊", "🐼", "🐯", "🐺"];
 
 export default function ChallengeGamePage() {
   const params = useParams();
@@ -707,26 +707,46 @@ export default function ChallengeGamePage() {
                 </span>
               </div>
 
-              {/* Avatar Picker */}
-              <div className="space-y-2">
-                <label className="block text-xs sm:text-sm font-extrabold text-slate-700 uppercase tracking-wider">
-                  Select Your Avatar
-                </label>
-                <div className="flex items-center justify-between gap-1.5 overflow-x-auto p-1.5">
-                  {AVATAR_OPTIONS.map((av) => (
-                    <button
-                      key={av}
-                      type="button"
-                      onClick={() => setAvatar(av)}
-                      className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl transition ${
-                        avatar === av
-                          ? "bg-indigo-600 text-white scale-110 shadow-lg ring-4 ring-indigo-200"
-                          : "bg-slate-100 hover:bg-slate-200"
-                      }`}
-                    >
-                      {av}
-                    </button>
-                  ))}
+              {/* Animal Avatar Picker (5 Big Animated Animals) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-extrabold text-slate-700 uppercase tracking-wider">
+                    Select Your Animal Avatar
+                  </label>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-black text-indigo-700 shadow-xs">
+                    <span className="text-lg inline-block animate-bounce">{avatar}</span>
+                    <span>Selected</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 sm:gap-3 p-2.5 bg-slate-50 border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl">
+                  {AVATAR_OPTIONS.map((av) => {
+                    const isSelected = avatar === av;
+                    return (
+                      <button
+                        key={av}
+                        type="button"
+                        onClick={() => {
+                          setAvatar(av);
+                          try {
+                            soundEffects.playPop();
+                          } catch (_) {}
+                        }}
+                        className={`h-14 sm:h-16 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl transition-all duration-300 transform hover:scale-125 hover:-translate-y-2 hover:rotate-6 active:scale-90 cursor-pointer ${
+                          isSelected
+                            ? "bg-indigo-600 text-white scale-110 shadow-xl ring-4 ring-indigo-300 z-10 animate-pulse"
+                            : "bg-white hover:bg-indigo-50 border-2 border-slate-200/80 shadow-sm"
+                        }`}
+                        title={`Select ${av}`}
+                      >
+                        <span className={`inline-block transition-transform duration-300 ${
+                          isSelected ? "animate-bounce" : "hover:scale-110"
+                        }`}>
+                          {av}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -237,11 +237,20 @@ app.prepare().then(() => {
       }
     });
 
+    function isAuthorizedHost(socket, room) {
+      if (!room) return false;
+      if (room.hostSocketId && socket.id !== room.hostSocketId) {
+        console.warn(`[Security] Unauthorized host command from socket ${socket.id} for PIN ${room.pin}`);
+        return false;
+      }
+      return true;
+    }
+
     // HOST: add bots
     socket.on("host:add_bots", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room || room.status !== "LOBBY") return;
-      const count = data.count || 4;
+      const room = activeRooms.get(data?.pin);
+      if (!room || room.status !== "LOBBY" || !isAuthorizedHost(socket, room)) return;
+      const count = Math.min(Math.max(Number(data.count) || 4, 1), 20);
       const bots = generateBots(count);
       bots.forEach((b) => {
         room.players.set(b.id, {
@@ -266,8 +275,8 @@ app.prepare().then(() => {
 
     // HOST: kick player
     socket.on("host:kick_player", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room) return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || !isAuthorizedHost(socket, room)) return;
       const player = room.players.get(data.playerId);
       if (player) {
         if (!player.isBot) {
@@ -280,8 +289,8 @@ app.prepare().then(() => {
 
     // HOST: start game
     socket.on("host:start_game", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room || room.status !== "LOBBY") return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || room.status !== "LOBBY" || !isAuthorizedHost(socket, room)) return;
       if (room.players.size === 0) {
         socket.emit("error", { message: "Waiting for at least 1 player to join." });
         return;
@@ -296,8 +305,8 @@ app.prepare().then(() => {
 
     // HOST: advance step
     socket.on("host:next_step", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room) return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || !isAuthorizedHost(socket, room)) return;
       if (room.status === "RESULTS") {
         showLeaderboard(io, room);
       } else if (room.status === "LEADERBOARD" || room.status === "QUESTION") {
@@ -312,8 +321,8 @@ app.prepare().then(() => {
 
     // HOST: show leaderboard directly
     socket.on("host:show_leaderboard", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room) return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || !isAuthorizedHost(socket, room)) return;
       if (room.status === "QUESTION") {
         lockAnswers(io, room);
       }
@@ -322,8 +331,8 @@ app.prepare().then(() => {
 
     // HOST: next question directly
     socket.on("host:next_question", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room) return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || !isAuthorizedHost(socket, room)) return;
       if (room.status === "QUESTION") {
         lockAnswers(io, room);
       }
@@ -337,8 +346,8 @@ app.prepare().then(() => {
 
     // HOST: skip / lock question
     socket.on("host:skip_question", (data) => {
-      const room = activeRooms.get(data.pin);
-      if (!room || room.status !== "QUESTION") return;
+      const room = activeRooms.get(data?.pin);
+      if (!room || room.status !== "QUESTION" || !isAuthorizedHost(socket, room)) return;
       lockAnswers(io, room);
     });
 
@@ -392,7 +401,8 @@ app.prepare().then(() => {
         socket.emit("player:join_error", { message: "This game session has ended." });
         return;
       }
-      const cleanNick = (data.nickname || "").trim().substring(0, 18);
+      const cleanNick = String(data?.nickname || "").replace(/[<>'"&]/g, "").trim().substring(0, 18);
+      const cleanAvatar = String(data?.avatar || "🦁").replace(/[<>'"&]/g, "").trim().substring(0, 10);
 
       let existingPlayer = null;
       if (data.playerId && room.players.has(data.playerId)) {
@@ -414,13 +424,13 @@ app.prepare().then(() => {
       if (existingPlayer) {
         playerId = existingPlayer.id;
         existingPlayer.socketId = socket.id;
-        if (data.avatar) existingPlayer.avatar = data.avatar;
+        if (cleanAvatar) existingPlayer.avatar = cleanAvatar;
         player = existingPlayer;
         if (!player.roundScores) player.roundScores = {};
         player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
       } else {
         playerId = data.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const avatar = data.avatar || "🦊";
+        const avatar = cleanAvatar || "🦁";
         player = {
           id: playerId,
           socketId: socket.id,

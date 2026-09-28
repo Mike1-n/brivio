@@ -4,9 +4,23 @@ import path from "path";
 import { existsSync } from "fs";
 import { supabase } from "@/lib/supabase";
 import { uploadToR2, isR2Configured } from "@/lib/r2";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { isSafePublicUrl } from "@/lib/security";
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Rate Limiting: 20 uploads per minute per IP
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`upload_${clientIp}`, { limit: 20, windowMs: 60 * 1000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Upload limit exceeded. Please wait before uploading more files." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+
     const contentType = req.headers.get("content-type") || "";
 
     let buffer: Buffer;
@@ -21,6 +35,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No file provided" }, { status: 400 });
       }
 
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        return NextResponse.json({ error: "File size exceeds the 5MB limit" }, { status: 413 });
+      }
+
       const bytes = await file.arrayBuffer();
       buffer = Buffer.from(bytes);
 
@@ -33,9 +51,11 @@ export async function POST(req: NextRequest) {
       } else if (file.type.includes("gif")) {
         extension = "gif";
         mimeType = "image/gif";
-      } else {
+      } else if (file.type.includes("jpeg") || file.type.includes("jpg")) {
         extension = "jpg";
         mimeType = "image/jpeg";
+      } else {
+        return NextResponse.json({ error: "Unsupported file type. Only JPG, PNG, WEBP, and GIF are permitted." }, { status: 400 });
       }
     } else {
       const body = await req.json();
@@ -44,11 +64,19 @@ export async function POST(req: NextRequest) {
       if (url && typeof url === "string" && url.startsWith("http")) {
         let cleanUrl = url.trim();
 
+        // 2. SSRF Protection: Reject private/internal IPs and non-HTTP protocols
+        if (!isSafePublicUrl(cleanUrl)) {
+          return NextResponse.json(
+            { error: "Access to private or non-routable addresses is strictly forbidden" },
+            { status: 403 }
+          );
+        }
+
         // Check if user pasted a Google Images search URL containing imgurl parameter
         try {
           const parsed = new URL(cleanUrl);
           const imgParam = parsed.searchParams.get("imgurl");
-          if (imgParam) {
+          if (imgParam && isSafePublicUrl(imgParam)) {
             cleanUrl = imgParam;
           }
         } catch (_) {}

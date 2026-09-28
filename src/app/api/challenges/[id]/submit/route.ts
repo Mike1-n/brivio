@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { sanitizePlainText } from "@/lib/security";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`submit_${clientIp}`, { limit: 15, windowMs: 60 * 1000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Submission rate limit exceeded. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+
     const challengeId = params.id;
     const body = await req.json();
     const { nickname, avatar = "🦊", answers = [] } = body;
@@ -14,7 +25,8 @@ export async function POST(
       return NextResponse.json({ error: "Nickname is required" }, { status: 400 });
     }
 
-    const cleanNick = nickname.trim().substring(0, 18);
+    const cleanNick = sanitizePlainText(nickname, 18);
+    const cleanAvatar = sanitizePlainText(avatar, 10) || "🦊";
 
     const challenge = await (prisma as any).quizChallenge.findUnique({
       where: { id: challengeId },
@@ -114,7 +126,7 @@ export async function POST(
       data: {
         challengeId,
         nickname: cleanNick,
-        avatar,
+        avatar: cleanAvatar,
         score: totalScore,
         accuracy,
         totalCorrect,

@@ -11,13 +11,18 @@ function MobileJoinGamePageContent() {
 
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [nickname, setNickname] = useState("");
+  const [avatar, setAvatar] = useState("🦊");
   const [error, setError] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const AVATAR_OPTIONS = ["🦁", "🦊", "🐼", "🐯", "🐺"];
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("quiz_player_nickname");
       if (saved) setNickname(saved);
+      const savedAv = localStorage.getItem("quiz_player_avatar");
+      if (savedAv) setAvatar(savedAv);
     }
   }, []);
 
@@ -85,9 +90,6 @@ function MobileJoinGamePageContent() {
     }
 
     // Save player profile locally
-    const avatarList = ["🦁", "🦊", "🚀", "💎", "⚡", "🐼", "🦄", "🎯"];
-    const savedAvatar = localStorage.getItem("quiz_player_avatar");
-    const avatar = savedAvatar || avatarList[Math.floor(Math.random() * avatarList.length)];
     localStorage.setItem("quiz_player_nickname", cleanNick);
     localStorage.setItem("quiz_player_avatar", avatar);
     localStorage.setItem("quiz_last_active_pin", pin);
@@ -147,6 +149,42 @@ function MobileJoinGamePageContent() {
               maxLength={15}
               className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:bg-white focus:outline-none transition text-sm shadow-sm"
             />
+          </div>
+
+          {/* Animal Avatar Picker (5 Big Animated Animals) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Select Animal Avatar
+              </label>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-black text-indigo-700 shadow-xs">
+                <span className="text-base inline-block animate-bounce">{avatar}</span>
+                <span>Selected</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-5 gap-2 p-2 bg-slate-50 border-2 border-slate-200/90 rounded-2xl">
+              {AVATAR_OPTIONS.map((av) => {
+                const isSelected = avatar === av;
+                return (
+                  <button
+                    key={av}
+                    type="button"
+                    onClick={() => setAvatar(av)}
+                    className={`h-13 sm:h-14 rounded-xl flex items-center justify-center text-2xl sm:text-3xl transition-all duration-300 transform hover:scale-125 hover:-translate-y-2 hover:rotate-6 active:scale-90 cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-600 text-white scale-110 shadow-lg ring-4 ring-indigo-300 z-10 animate-pulse"
+                        : "bg-white hover:bg-indigo-50 border-2 border-slate-200/80 shadow-xs"
+                    }`}
+                  >
+                    <span className={`inline-block transition-transform duration-300 ${
+                      isSelected ? "animate-bounce" : "hover:scale-110"
+                    }`}>
+                      {av}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {error && (

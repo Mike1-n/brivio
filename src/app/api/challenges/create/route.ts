@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { sanitizePlainText } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`challenge_create_${clientIp}`, { limit: 25, windowMs: 60 * 1000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Too many challenge creation requests. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+
     const token = req.cookies.get("auth_token")?.value;
     const user = token ? verifyToken(token) : null;
 
@@ -14,8 +25,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { quizId, durationHours, durationMinutes, timeLimitMins, title } = body;
 
-    if (!quizId) {
-      return NextResponse.json({ error: "Quiz ID is required" }, { status: 400 });
+    if (!quizId || typeof quizId !== "string") {
+      return NextResponse.json({ error: "Valid Quiz ID is required" }, { status: 400 });
     }
 
     const quiz = await prisma.quiz.findUnique({

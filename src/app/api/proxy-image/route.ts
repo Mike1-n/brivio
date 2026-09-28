@@ -1,11 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isSafePublicUrl } from "@/lib/security";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function GET(req: NextRequest) {
+  // 1. Rate Limiting: 30 requests per minute per IP
+  const clientIp = getClientIp(req);
+  const rateCheck = checkRateLimit(`proxy_${clientIp}`, { limit: 30, windowMs: 60 * 1000 });
+  if (!rateCheck.success) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded. Please slow down image proxy requests." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get("url");
 
   if (!targetUrl || !targetUrl.startsWith("http")) {
     return NextResponse.json({ error: "Invalid or missing image URL" }, { status: 400 });
+  }
+
+  // 2. SSRF Protection: Prevent accessing internal networks, localhost, or cloud metadata
+  if (!isSafePublicUrl(targetUrl)) {
+    return NextResponse.json(
+      { error: "Access to private or non-routable addresses is strictly forbidden" },
+      { status: 403 }
+    );
   }
 
   try {
