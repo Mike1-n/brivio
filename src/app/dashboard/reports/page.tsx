@@ -16,6 +16,7 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<"live" | "challenges">("challenges");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedChallenge, setSelectedChallenge] = useState<any | null>(null);
+  const [selectedLiveSession, setSelectedLiveSession] = useState<any | null>(null);
   const [ranksSearchQuery, setRanksSearchQuery] = useState("");
   const [copiedChallengeId, setCopiedChallengeId] = useState<string | null>(null);
 
@@ -34,9 +35,9 @@ export default function ReportsPage() {
 
   const chartData = activeTab === "live"
     ? recentSessions.map((s) => ({
-        name: s.quiz?.title?.substring(0, 15) || `PIN ${s.pin}`,
-        participants: s.gameAnalytics?.totalParticipants || 0,
-        avgScore: s.gameAnalytics?.averageScore || 0,
+        name: s.title?.substring(0, 15) || `PIN ${s.pin}`,
+        participants: s.totalParticipants || s.playersCount || 0,
+        avgScore: s.avgScore || 0,
       }))
     : challenges.map((c) => ({
         name: c.quizTitle?.substring(0, 15) || c.title?.substring(0, 15) || "Challenge",
@@ -237,36 +238,74 @@ export default function ReportsPage() {
       {/* 2. LIVE SESSIONS TABLE */}
       {activeTab === "live" && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
-          <h2 className="text-lg font-black text-slate-900">Live Game Session History</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Live Game Session History & Scores</h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Click on any live game session to inspect all player scores, rankings, and match standings.
+              </p>
+            </div>
+            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+              {recentSessions.length} Live Sessions
+            </span>
+          </div>
+
           {recentSessions.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 text-sm font-semibold">
-              No live game sessions found.
+            <div className="py-12 text-center text-slate-400 text-sm font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              No live game sessions hosted yet. Start a live game to track real-time player scores!
             </div>
           ) : (
             <div className="divide-y divide-slate-100 overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="text-xs uppercase text-slate-400 font-bold">
-                    <th className="pb-3">Quiz</th>
-                    <th className="pb-3">PIN</th>
+                    <th className="pb-3">Quiz & PIN</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3">Participants</th>
+                    <th className="pb-3">Top Score</th>
+                    <th className="pb-3">Avg Score</th>
                     <th className="pb-3">Date</th>
+                    <th className="pb-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {recentSessions.map((s) => (
-                    <tr key={s.id} className="text-slate-700 font-medium">
-                      <td className="py-3.5 font-bold text-slate-900">{s.quiz?.title || "Quiz"}</td>
-                      <td className="py-3.5 font-mono text-indigo-600 font-bold">{s.pin}</td>
+                    <tr key={s.id} className="text-slate-700 font-medium hover:bg-slate-50/70 transition">
+                      <td className="py-3.5 font-bold text-slate-900">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-slate-900">{s.title || "Live Arena Game"}</span>
+                          <span className="text-[11px] font-mono text-indigo-600 font-bold">PIN: {s.pin}</span>
+                        </div>
+                      </td>
                       <td className="py-3.5">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">
-                          {s.status}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                          s.status === "ENDED"
+                            ? "bg-slate-100 text-slate-700 border border-slate-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse"
+                        }`}>
+                          {s.status === "ENDED" ? "Completed" : s.status}
                         </span>
                       </td>
-                      <td className="py-3.5 font-bold">{s.gameAnalytics?.totalParticipants || 0}</td>
-                      <td className="py-3.5 text-xs text-slate-400">
+                      <td className="py-3.5 font-black text-slate-900">
+                        {s.totalParticipants || s.playersCount || 0} {(s.totalParticipants || s.playersCount) === 1 ? "player" : "players"}
+                      </td>
+                      <td className="py-3.5 font-mono font-black text-indigo-600">
+                        {Number(s.highestScore || 0).toLocaleString()} pts
+                      </td>
+                      <td className="py-3.5 font-bold text-slate-600">
+                        {Number(s.avgScore || 0).toLocaleString()} pts
+                      </td>
+                      <td className="py-3.5 text-xs text-slate-400 font-semibold">
                         {new Date(s.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3.5 text-right">
+                        <button
+                          onClick={() => setSelectedLiveSession(s)}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition inline-flex items-center gap-1.5"
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                          <span>View Scores ({s.totalParticipants || s.playersCount || 0})</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -466,6 +505,189 @@ export default function ReportsPage() {
               <button
                 onClick={() => {
                   setSelectedChallenge(null);
+                  setRanksSearchQuery("");
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE GAME SESSION PARTICIPANT SCORES MODAL */}
+      {selectedLiveSession && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 text-slate-900 max-w-2xl w-full max-h-[90vh] flex flex-col justify-between shadow-2xl space-y-4 border border-slate-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-xl font-black shadow-sm">
+                  ⚡
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900">
+                      {selectedLiveSession.title || "Live Arena Game"}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      PIN {selectedLiveSession.pin}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Live Session Scoreboard & Player Standings
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedLiveSession(null);
+                  setRanksSearchQuery("");
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Session Summary Badges */}
+            <div className="grid grid-cols-4 gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-3 shrink-0 text-center text-xs">
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Players</span>
+                <span className="font-black text-slate-900 text-sm">{selectedLiveSession.totalParticipants || selectedLiveSession.playersCount || 0}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Top Score</span>
+                <span className="font-mono font-black text-emerald-600 text-sm">
+                  {Number(selectedLiveSession.highestScore || 0).toLocaleString()} pts
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Avg Score</span>
+                <span className="font-black text-indigo-600 text-sm">
+                  {Number(selectedLiveSession.avgScore || 0).toLocaleString()} pts
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Status</span>
+                <span className={`inline-block font-extrabold text-[11px] px-2 py-0.5 rounded-full ${
+                  selectedLiveSession.status === "ENDED" ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800 animate-pulse"
+                }`}>
+                  {selectedLiveSession.status === "ENDED" ? "Completed" : selectedLiveSession.status}
+                </span>
+              </div>
+            </div>
+
+            {/* Search Filter & Player List */}
+            {(() => {
+              const players = selectedLiveSession.players || [];
+              const filteredPlayers = ranksSearchQuery.trim()
+                ? players.filter((p: any) =>
+                    (p.nickname || "").toLowerCase().includes(ranksSearchQuery.trim().toLowerCase())
+                  )
+                : players;
+
+              return (
+                <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-hidden">
+                  <div className="relative flex-1 shrink-0">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={ranksSearchQuery}
+                      onChange={(e) => setRanksSearchQuery(e.target.value)}
+                      placeholder="Search player by nickname..."
+                      className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition"
+                    />
+                    {ranksSearchQuery && (
+                      <button
+                        onClick={() => setRanksSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Player Rankings List */}
+                  <div className="flex-1 flex flex-col space-y-1.5 min-h-0 overflow-y-auto pr-1">
+                    {players.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200 my-auto">
+                        No player scores recorded for this live game session.
+                      </div>
+                    ) : filteredPlayers.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs font-semibold bg-slate-50 rounded-2xl border border-slate-100 my-auto">
+                        No players matching &quot;{ranksSearchQuery}&quot;.
+                      </div>
+                    ) : (
+                      filteredPlayers.map((p: any, idx: number) => {
+                        const rankNum = p.rank || idx + 1;
+                        const medalIcons = ["🥇", "🥈", "🥉"];
+                        const isTop3 = rankNum <= 3;
+
+                        return (
+                          <div
+                            key={p.id || idx}
+                            className={`p-3 rounded-2xl border flex items-center justify-between transition ${
+                              isTop3
+                                ? rankNum === 1
+                                  ? "bg-amber-50/80 border-amber-200 shadow-sm"
+                                  : rankNum === 2
+                                  ? "bg-slate-50 border-slate-200"
+                                  : "bg-amber-50/40 border-amber-100"
+                                : "bg-white border-slate-100 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span className="font-black text-sm w-7 text-center shrink-0 text-slate-700">
+                                {isTop3 ? medalIcons[rankNum - 1] : `#${rankNum}`}
+                              </span>
+                              <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-sm shrink-0">
+                                {p.avatar || "🦊"}
+                              </span>
+                              <div className="flex flex-col min-w-0 flex-1 text-left">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-sm text-slate-900 truncate">
+                                    {p.nickname}
+                                  </span>
+                                  {p.isBot && (
+                                    <span className="px-1.5 py-0.2 bg-purple-50 border border-purple-200 text-purple-700 font-extrabold text-[9px] rounded-md uppercase">
+                                      Bot
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-semibold">
+                                  {p.streak ? `🔥 ${p.streak} streak` : "Live Player"}
+                                  {p.createdAt ? ` • ${new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 pl-2">
+                              <span className="font-mono font-black text-base text-indigo-600 block">
+                                {Number(p.score || 0).toLocaleString()} pts
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                Rank #{rankNum}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-400 font-medium">
+                Official player scores for Live Session PIN: {selectedLiveSession.pin}
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedLiveSession(null);
                   setRanksSearchQuery("");
                 }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"

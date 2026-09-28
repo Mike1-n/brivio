@@ -45,10 +45,9 @@ export function calculateScore({
   const timeLimitMs = Math.max(timeLimitSeconds * 1000, 1000);
   const clampedResponseTime = Math.min(Math.max(responseTimeMs, 0), timeLimitMs);
   
-  // Calculate speed factor between 0.5 (slowest) and 1.0 (instant)
-  // Response fraction from 0.0 (instant) to 1.0 (time expired)
+  // Calculate speed factor between 0.20 (slowest) and 1.0 (instant) - decays faster
   const responseFraction = clampedResponseTime / timeLimitMs;
-  const speedFactor = 1 - (responseFraction * 0.5); // ranges 0.5 to 1.0
+  const speedFactor = Math.max(0.2, 1 - (responseFraction * 0.8)); // ranges 0.2 to 1.0
   
   const rawPoints = Math.round(basePoints * speedFactor);
   
@@ -64,7 +63,7 @@ export function calculateScore({
 
   return {
     points: totalPoints,
-    speedBonus: rawPoints - Math.round(basePoints * 0.5),
+    speedBonus: rawPoints - Math.round(basePoints * 0.2),
     streakBonus,
     newStreak,
   };

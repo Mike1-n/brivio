@@ -1099,11 +1099,59 @@ function clearBotTimers(room: GameRoom) {
 async function saveGameResultsToDB(room: GameRoom, sortedPlayers: RoomPlayer[]) {
   try {
     const totalPlayers = sortedPlayers.length;
-    const totalScore = sortedPlayers.reduce((acc, p) => acc + p.score, 0);
+    const totalScore = sortedPlayers.reduce((acc, p) => acc + (p.score || 0), 0);
     const avgScore = totalPlayers > 0 ? totalScore / totalPlayers : 0;
     const highestScore = sortedPlayers[0]?.score || 0;
     const lowestScore = sortedPlayers[sortedPlayers.length - 1]?.score || 0;
 
+    // 1. Permanently store every player's score, rank, and details in DB
+    for (let i = 0; i < sortedPlayers.length; i++) {
+      const p = sortedPlayers[i];
+      const rank = p.rank || (i + 1);
+      const cleanNick = (p.nickname || "Player").trim();
+      const score = Number(p.score || 0);
+      const streak = Number(p.streak || 0);
+      const avatar = p.avatar || "🦊";
+      const isBot = Boolean(p.isBot);
+
+      try {
+        const existing = await prisma.gamePlayer.findFirst({
+          where: {
+            sessionId: room.sessionId,
+            nickname: cleanNick,
+          },
+        });
+
+        if (existing) {
+          await prisma.gamePlayer.update({
+            where: { id: existing.id },
+            data: {
+              score,
+              rank,
+              streak,
+              avatar,
+              isBot,
+            },
+          });
+        } else {
+          await prisma.gamePlayer.create({
+            data: {
+              sessionId: room.sessionId,
+              nickname: cleanNick,
+              avatar,
+              score,
+              rank,
+              streak,
+              isBot,
+            },
+          });
+        }
+      } catch (pErr) {
+        console.error(`[GameServer] Error saving player score '${cleanNick}':`, pErr);
+      }
+    }
+
+    // 2. Update GameSession status and analytics
     await prisma.gameSession.update({
       where: { id: room.sessionId },
       data: {
@@ -1136,7 +1184,7 @@ async function saveGameResultsToDB(room: GameRoom, sortedPlayers: RoomPlayer[]) 
       data: { playsCount: { increment: 1 } },
     });
 
-    console.log(`[GameServer] Session ${room.sessionId} successfully archived to DB`);
+    console.log(`[GameServer] Session ${room.sessionId} (${room.pin}) with ${totalPlayers} player scores successfully archived to DB`);
   } catch (err) {
     console.error("Failed to archive game results to DB:", err);
   }

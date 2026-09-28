@@ -19,15 +19,14 @@ function calculateScore({ isCorrect, basePoints = 1000, timeLimitSeconds = 20, r
   const timeLimitMs = Math.max(timeLimitSeconds * 1000, 1000);
   const clampedResponseTime = Math.min(Math.max(responseTimeMs, 50), timeLimitMs);
   const responseFraction = clampedResponseTime / timeLimitMs;
-  // Speed factor: 1.0 down to 0.5
-  const speedFactor = 1 - (responseFraction * 0.5);
+  // Speed factor: 1.0 down to 0.20 (decreases faster with elapsed response time)
+  const speedFactor = Math.max(0.2, 1 - (responseFraction * 0.8));
   const rawPoints = Math.round(basePoints * speedFactor);
-  // Guarantee points never exceed basePoints and never fall below 50% of basePoints
-  const finalPoints = Math.min(Math.max(rawPoints, Math.round(basePoints * 0.5)), basePoints);
+  const finalPoints = Math.min(Math.max(rawPoints, Math.round(basePoints * 0.2)), basePoints);
   const newStreak = currentStreak + 1;
   return {
     points: finalPoints,
-    speedBonus: finalPoints - Math.round(basePoints * 0.5),
+    speedBonus: finalPoints - Math.round(basePoints * 0.2),
     streakBonus: 0,
     newStreak,
   };
@@ -1025,11 +1024,59 @@ function clearBotTimers(room) {
 async function saveGameResultsToDB(room, sortedPlayers) {
   try {
     const totalPlayers = sortedPlayers.length;
-    const totalScore = sortedPlayers.reduce((acc, p) => acc + p.score, 0);
+    const totalScore = sortedPlayers.reduce((acc, p) => acc + (p.score || 0), 0);
     const avgScore = totalPlayers > 0 ? totalScore / totalPlayers : 0;
     const highestScore = sortedPlayers[0]?.score || 0;
     const lowestScore = sortedPlayers[sortedPlayers.length - 1]?.score || 0;
 
+    // 1. Permanently store every player's score, rank, and details in DB
+    for (let i = 0; i < sortedPlayers.length; i++) {
+      const p = sortedPlayers[i];
+      const rank = p.rank || (i + 1);
+      const cleanNick = (p.nickname || "Player").trim();
+      const score = Number(p.score || 0);
+      const streak = Number(p.streak || 0);
+      const avatar = p.avatar || "🦊";
+      const isBot = Boolean(p.isBot);
+
+      try {
+        const existing = await prisma.gamePlayer.findFirst({
+          where: {
+            sessionId: room.sessionId,
+            nickname: cleanNick,
+          },
+        });
+
+        if (existing) {
+          await prisma.gamePlayer.update({
+            where: { id: existing.id },
+            data: {
+              score,
+              rank,
+              streak,
+              avatar,
+              isBot,
+            },
+          });
+        } else {
+          await prisma.gamePlayer.create({
+            data: {
+              sessionId: room.sessionId,
+              nickname: cleanNick,
+              avatar,
+              score,
+              rank,
+              streak,
+              isBot,
+            },
+          });
+        }
+      } catch (pErr) {
+        console.error(`[Socket] Error saving player score '${cleanNick}':`, pErr);
+      }
+    }
+
+    // 2. Update GameSession status and analytics
     await prisma.gameSession.update({
       where: { id: room.sessionId },
       data: {
@@ -1060,7 +1107,7 @@ async function saveGameResultsToDB(room, sortedPlayers) {
       where: { id: room.quizId },
       data: { playsCount: { increment: 1 } },
     });
-    console.log(`[Socket] Saved session ${room.sessionId} to database.`);
+    console.log(`[Socket] Successfully saved session ${room.sessionId} (PIN ${room.pin}) with ${totalPlayers} player scores.`);
   } catch (err) {
     console.error("Error saving game results:", err);
   }

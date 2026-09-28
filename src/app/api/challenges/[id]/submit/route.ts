@@ -95,9 +95,10 @@ export async function POST(
         totalCorrect++;
         streak++;
         const streakMultiplier = 1 + Math.min(streak - 1, 3) * 0.1;
-        const timeLimitMs = (q.timeLimit || 20) * 1000;
-        const responseTimeMs = Math.min(userAns?.responseTimeMs || 3000, timeLimitMs);
-        const speedFactor = 1 - (responseTimeMs / (timeLimitMs * 2));
+        const timeLimitMs = Math.max((q.timeLimit || 20) * 1000, 1000);
+        const responseTimeMs = Math.min(Math.max(userAns?.responseTimeMs || 3000, 0), timeLimitMs);
+        const responseFraction = responseTimeMs / timeLimitMs;
+        const speedFactor = Math.max(0.2, 1 - (responseFraction * 0.8));
         const questionScore = Math.round(q.points * speedFactor * streakMultiplier);
         totalScore += questionScore;
       } else {
@@ -153,62 +154,11 @@ export async function POST(
 
     const rank = uniqueLeaderboard.findIndex((a: any) => a.nickname.toLowerCase() === cleanNick.toLowerCase()) + 1;
 
-    // 5. Fetch all quiz attempts across all challenges for this quiz
-    const allChallengesForQuiz = await (prisma as any).quizChallenge.findMany({
-      where: { quizId: challenge.quizId, isActive: true },
-      include: {
-        attempts: {
-          orderBy: { score: "desc" },
-          select: {
-            id: true,
-            nickname: true,
-            avatar: true,
-            score: true,
-            accuracy: true,
-            totalCorrect: true,
-            totalQuestions: true,
-            completedAt: true,
-          },
-        },
-      },
-    });
-
-    const allQuizAttempts: any[] = [];
-    allChallengesForQuiz.forEach((c: any) => {
-      (c.attempts || []).forEach((att: any) => {
-        allQuizAttempts.push({
-          ...att,
-          challengeId: c.id,
-          challengeTitle: c.title || "Challenge",
-        });
-      });
-    });
-
-    allQuizAttempts.sort((a, b) => (b.score || 0) - (a.score || 0));
-
-    const allSeen = new Set<string>();
-    const allUniqueQuizAttempts: any[] = [];
-    for (const att of allQuizAttempts) {
-      const lower = att.nickname.toLowerCase();
-      if (!allSeen.has(lower)) {
-        allSeen.add(lower);
-        allUniqueQuizAttempts.push({
-          ...att,
-          rank: allUniqueQuizAttempts.length + 1,
-        });
-      }
-    }
-
-    const allQuizRank = allUniqueQuizAttempts.findIndex((a: any) => a.nickname.toLowerCase() === cleanNick.toLowerCase()) + 1;
-
     return NextResponse.json({
       attempt,
       rank: rank > 0 ? rank : 1,
       totalParticipants: uniqueLeaderboard.length,
       leaderboard: uniqueLeaderboard,
-      allQuizRank: allQuizRank > 0 ? allQuizRank : rank,
-      allQuizRankings: allUniqueQuizAttempts,
-      totalQuizParticipants: allUniqueQuizAttempts.length,
     });
   } catch (error) {
     console.error("Submit challenge attempt error:", error);

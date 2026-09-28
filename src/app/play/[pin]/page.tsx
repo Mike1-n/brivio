@@ -515,24 +515,24 @@ export default function PlayerGameControllerPage() {
           )}
 
           {/* Question Text Banner with Enlarged Typography */}
-          <div className="w-full bg-[#ECECF1] text-slate-900 font-black text-center py-2.5 sm:py-3.5 px-3.5 sm:px-5 rounded-xl sm:rounded-2xl shadow-md border border-white/50 flex items-center justify-center overflow-hidden min-h-[55px] max-h-40 overflow-y-auto">
+          <div className="w-full bg-[#ECECF1] text-slate-900 font-black text-center py-3 sm:py-4 px-4 sm:px-6 rounded-2xl shadow-md border border-white/50 flex items-center justify-center overflow-hidden min-h-[60px] sm:min-h-[70px] max-h-44 overflow-y-auto">
             {(() => {
               const textLen = (currentQuestion.text || "").length;
               const fontClass = currentQuestion.image
                 ? textLen > 140
-                  ? "text-xs sm:text-sm md:text-base"
-                  : textLen > 80
                   ? "text-sm sm:text-base md:text-lg"
-                  : textLen > 40
+                  : textLen > 80
                   ? "text-base sm:text-lg md:text-xl"
-                  : "text-lg sm:text-xl md:text-2xl"
+                  : textLen > 40
+                  ? "text-lg sm:text-xl md:text-2xl"
+                  : "text-xl sm:text-2xl md:text-3xl"
                 : textLen > 140
-                ? "text-sm sm:text-base md:text-lg"
-                : textLen > 80
                 ? "text-base sm:text-lg md:text-xl"
-                : textLen > 40
+                : textLen > 80
                 ? "text-lg sm:text-xl md:text-2xl"
-                : "text-xl sm:text-2xl md:text-3xl";
+                : textLen > 40
+                ? "text-xl sm:text-2xl md:text-3xl"
+                : "text-2xl sm:text-3xl md:text-4xl";
               return (
                 <h2 className={`font-black leading-snug break-words [overflow-wrap:anywhere] text-slate-900 ${fontClass}`}>
                   {currentQuestion.text}
@@ -543,7 +543,7 @@ export default function PlayerGameControllerPage() {
 
           {/* 2x2 Answer Grid (Red, Blue, Yellow, Green with Shapes) */}
           {(currentQuestion.type === "MULTIPLE_CHOICE" || currentQuestion.type === "TRUE_FALSE" || currentQuestion.type === "POLL" || !currentQuestion.type) && (
-            <div className={`shrink-0 w-full grid gap-1.5 sm:gap-2 min-h-[110px] ${
+            <div className={`shrink-0 w-full grid gap-2 sm:gap-2.5 min-h-[120px] sm:min-h-[140px] ${
               (currentQuestion.type === "TRUE_FALSE" || currentQuestion.answers?.length === 2)
                 ? "grid-cols-2 grid-rows-1"
                 : "grid-cols-2 grid-rows-2"
@@ -565,25 +565,25 @@ export default function PlayerGameControllerPage() {
 
                 const textLen = (ans.text || "").length;
                 const fontSizeClass = textLen > 60
-                  ? "text-[9px] sm:text-[11px]"
+                  ? "text-[11px] sm:text-xs md:text-sm"
                   : textLen > 35
-                  ? "text-[10px] sm:text-xs"
+                  ? "text-xs sm:text-sm md:text-base"
                   : textLen > 20
-                  ? "text-[11px] sm:text-sm"
+                  ? "text-xs sm:text-base md:text-lg"
                   : textLen > 10
-                  ? "text-xs sm:text-base"
-                  : "text-sm sm:text-lg";
+                  ? "text-sm sm:text-lg md:text-xl"
+                  : "text-base sm:text-xl md:text-2xl";
 
                 return (
                   <button
                     key={ans.id || idx}
                     onClick={() => handleSelectAnswer(ans)}
-                    className={`w-full min-h-[50px] sm:min-h-[58px] px-2.5 sm:px-3 py-1.5 sm:py-2.5 rounded-xl text-white font-black flex items-center justify-center relative transition shadow-lg ${style.bg}`}
+                    className={`w-full min-h-[58px] sm:min-h-[72px] px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-white font-black flex items-center justify-center relative transition shadow-lg ${style.bg}`}
                   >
-                    <span className="absolute left-2.5 sm:left-3 text-sm sm:text-base opacity-95">
+                    <span className="absolute left-3 sm:left-4 text-base sm:text-xl opacity-95">
                       {style.icon}
                     </span>
-                    <span className={`text-center font-black tracking-wide uppercase leading-tight break-words px-5 sm:px-6 w-full ${fontSizeClass}`}>
+                    <span className={`text-center font-black tracking-wide uppercase leading-tight break-words px-6 sm:px-8 w-full ${fontSizeClass}`}>
                       {ans.text}
                     </span>
                   </button>
@@ -599,7 +599,7 @@ export default function PlayerGameControllerPage() {
                 type="text"
                 placeholder="Type your answer here..."
                 id="player_text_answer_input"
-                className="w-full p-3 bg-white border-2 border-indigo-200 rounded-xl text-slate-900 font-bold text-sm focus:border-indigo-600 focus:outline-none"
+                className="w-full p-4 bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl text-slate-900 font-bold text-base focus:border-indigo-600 focus:outline-none"
               />
               <button
                 type="button"
@@ -609,7 +609,7 @@ export default function PlayerGameControllerPage() {
                     handleSelectAnswer({ id: "typed", text: input.value.trim() }, { textAnswer: input.value.trim() });
                   }
                 }}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95"
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base rounded-xl sm:rounded-2xl shadow-lg transition active:scale-95"
               >
                 Submit Answer 🚀
               </button>
@@ -617,23 +617,23 @@ export default function PlayerGameControllerPage() {
           )}
 
           {/* Bottom Player Status Bar: Avatar + Nickname + Score Badge */}
-          <div className="shrink-0 flex items-center justify-between pt-1 border-t border-purple-400/20">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-xl sm:text-2xl shadow-md">
+          <div className="shrink-0 flex items-center justify-between pt-1.5 border-t border-purple-400/20">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-2xl sm:text-3xl shadow-md">
                 {avatar}
               </div>
               <div className="flex flex-col text-left">
-                <span className="font-black text-white text-xs sm:text-sm leading-tight max-w-[140px] truncate">
+                <span className="font-black text-white text-sm sm:text-base leading-tight max-w-[160px] truncate">
                   {nickname}
                 </span>
-                <span className="inline-block bg-[#3B1278] border border-purple-400/40 text-white font-mono font-black text-[11px] px-2 py-0.5 rounded-md mt-0.5 w-fit">
+                <span className="inline-block bg-[#3B1278] border border-purple-400/40 text-white font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-md mt-0.5 w-fit">
                   {score}
                 </span>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-200/80">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-purple-200/80">
                 PIN: {pin}
               </span>
             </div>
@@ -691,7 +691,7 @@ export default function PlayerGameControllerPage() {
             </div>
 
             {/* Headline & Motivational Message */}
-            <div className="space-y-0.5">
+            <div className="space-y-1 text-center">
               <h2 className="text-xl sm:text-2xl font-black">
                 {lastResult?.isCorrect
                   ? "Awesome! Spot On! 🔥"
@@ -699,6 +699,20 @@ export default function PlayerGameControllerPage() {
                   ? "Time's Up! ⏰"
                   : "Incorrect! ❌"}
               </h2>
+
+              {/* Prominent Bold Points Gained Display */}
+              <div className="flex items-center justify-center py-1">
+                <span
+                  className={`inline-flex items-center px-4 py-1.5 rounded-2xl font-black text-2xl sm:text-3xl tracking-tight shadow-xl border ${
+                    lastResult?.isCorrect
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-emerald-500/30"
+                      : "bg-rose-500/20 text-rose-300 border-rose-400/50 shadow-rose-500/30"
+                  }`}
+                >
+                  {lastResult?.isCorrect ? `+${(lastResult?.pointsAwarded ?? 0).toLocaleString()}` : "+0"} <span className="text-xs sm:text-sm font-bold ml-1.5 opacity-80 uppercase tracking-wider">pts</span>
+                </span>
+              </div>
+
               <p className="text-xs font-semibold text-indigo-200">
                 {lastResult?.isCorrect
                   ? "Lightning fast answer! Points awarded!"
@@ -719,7 +733,7 @@ export default function PlayerGameControllerPage() {
             <div className="bg-indigo-900/80 border border-indigo-400/30 rounded-xl p-3 w-full flex items-center justify-between">
               <div className="text-left">
                 <span className="text-[10px] font-bold text-indigo-300 uppercase block">Points Earned</span>
-                <span className={`text-lg sm:text-xl font-black ${lastResult?.isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
+                <span className={`text-xl sm:text-2xl font-black ${lastResult?.isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
                   {lastResult?.isCorrect ? `+${lastResult.pointsAwarded}` : "+0"} pts
                 </span>
               </div>
@@ -771,7 +785,7 @@ export default function PlayerGameControllerPage() {
             </div>
 
             {/* Motivational Heading & Subtext */}
-            <div className="space-y-0.5">
+            <div className="space-y-1 text-center">
               <h2 className="text-xl sm:text-2xl font-black">
                 {lastResult?.isCorrect
                   ? "Awesome! Spot On! 🔥"
@@ -779,6 +793,20 @@ export default function PlayerGameControllerPage() {
                   ? "Time's Up! ⏰"
                   : "Incorrect! ❌"}
               </h2>
+
+              {/* Prominent Bold Points Gained Display */}
+              <div className="flex items-center justify-center py-1">
+                <span
+                  className={`inline-flex items-center px-4 py-1.5 rounded-2xl font-black text-2xl sm:text-3xl tracking-tight shadow-lg border ${
+                    lastResult?.isCorrect
+                      ? "bg-emerald-50 text-emerald-600 border-emerald-300 shadow-emerald-500/10"
+                      : "bg-rose-50 text-rose-600 border-rose-300 shadow-rose-500/10"
+                  }`}
+                >
+                  {lastResult?.isCorrect ? `+${(lastResult?.pointsAwarded ?? 0).toLocaleString()}` : "+0"} <span className="text-xs sm:text-sm font-bold ml-1.5 opacity-80 uppercase tracking-wider">pts</span>
+                </span>
+              </div>
+
               <p className="text-xs font-semibold text-slate-500">
                 {lastResult?.isCorrect
                   ? "Lightning fast speed! Great reflexes!"
@@ -848,112 +876,189 @@ export default function PlayerGameControllerPage() {
 
       {/* 6. PLAYER FINAL RESULTS (TOP 3 PODIUM + PLAYER POSITION) */}
       {gameState === "PODIUM" && (
-        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-[#4F46E5] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 text-white shadow-2xl text-center overflow-y-auto animate-fade-in space-y-2.5">
+        <div className="h-full flex-1 flex flex-col items-center justify-between w-full bg-gradient-to-b from-[#4F46E5] to-[#3730A3] rounded-3xl p-5 sm:p-7 text-white shadow-2xl text-center overflow-y-auto animate-fade-in space-y-4">
           {/* Header */}
-          <div className="shrink-0 space-y-0.5">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-indigo-200">
-              Game Finished
-            </span>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight">Final Results 🏆</h1>
+          <div className="shrink-0 space-y-1.5">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-400/20 border border-amber-400/40 text-amber-300 text-2xl shadow-lg mx-auto animate-bounce">
+              🏆
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Final Results</h1>
+            <p className="text-xs sm:text-sm font-semibold text-indigo-200">
+              Great match, <span className="text-amber-300 font-extrabold">{nickname}</span>!
+            </p>
           </div>
 
           {/* Player Score Stats Card with Position Number */}
-          <div className="shrink-0 w-full grid grid-cols-2 gap-2 bg-indigo-900/70 border border-indigo-400/30 rounded-2xl p-3 text-center">
-            <div>
-              <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Score</span>
-              <span className="font-mono text-base sm:text-lg font-black text-amber-300">
-                {score.toLocaleString()} pts
+          <div className="shrink-0 w-full grid grid-cols-2 gap-3 bg-indigo-950/60 border border-indigo-400/30 rounded-2xl p-3.5 text-center shadow-inner">
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-[10px] sm:text-xs font-black text-indigo-300 uppercase tracking-wider block">Your Score</span>
+              <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 mt-0.5">
+                {score.toLocaleString()}
               </span>
+              <span className="text-[9px] font-bold text-indigo-400 uppercase">Points</span>
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-indigo-200 uppercase block">Your Position</span>
-              <span className="text-base sm:text-lg font-black text-white">
-                #{rank} <span className="text-[10px] text-indigo-300 font-bold font-sans">/ {totalPlayers}</span>
+            <div className="flex flex-col items-center justify-center border-l border-indigo-800/60">
+              <span className="text-[10px] sm:text-xs font-black text-indigo-300 uppercase tracking-wider block">Your Position</span>
+              <span className="text-xl sm:text-2xl font-black text-white mt-0.5">
+                #{rank}
+              </span>
+              <span className="text-[9px] font-bold text-indigo-300">
+                of {totalPlayers} {totalPlayers === 1 ? "player" : "players"}
               </span>
             </div>
           </div>
 
-          {/* Top 3 Podium Box */}
-          <div className="w-full bg-indigo-950/60 border border-indigo-400/30 rounded-2xl p-3 sm:p-3.5 space-y-2 text-left">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm">🏆</span>
-                <h3 className="text-xs font-black uppercase tracking-wider text-indigo-200">
+          {/* Top 3 Podium Box with 3D Stairs */}
+          <div className="w-full bg-black/20 border border-white/15 rounded-3xl p-4 sm:p-5 space-y-3 text-left backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🏆</span>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-indigo-200">
                   Top 3 Podium
                 </h3>
               </div>
-              <span className="text-[10px] font-extrabold text-indigo-300">
-                {totalPlayers} Total Players
+              <span className="text-[10px] sm:text-xs font-bold text-indigo-300 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+                {totalPlayers} Players
               </span>
             </div>
 
-            <div className="space-y-1.5">
-              {leaderboard.slice(0, 3).map((p: any, idx: number) => {
-                const myNick = (nickname || "").trim().toLowerCase();
-                const isMe = (p.id && playerIdRef.current && p.id === playerIdRef.current) || (p.nickname || "").trim().toLowerCase() === myNick;
-                const rankNum = p.rank || idx + 1;
-                const medalIcons = ["🥇", "🥈", "🥉"];
+            {/* 3D Stairs Podium (2 on Left, 1 in Center, 3 on Right) */}
+            {(() => {
+              const top3List = leaderboard.slice(0, 3);
+              const top1 = top3List[0] || null;
+              const top2 = top3List[1] || null;
+              const top3 = top3List[2] || null;
 
-                return (
-                  <div
-                    key={p.id || idx}
-                    className={`flex items-center justify-between p-2.5 px-3 rounded-xl text-xs font-bold transition ${
-                      isMe
-                        ? "bg-amber-400 text-slate-950 shadow-md ring-2 ring-white"
-                        : "bg-indigo-900/60 border border-indigo-500/30 text-white"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="w-5 text-center text-sm font-black shrink-0">
-                        {medalIcons[rankNum - 1] || `#${rankNum}`}
-                      </span>
-                      <span className="w-7 h-7 rounded-lg bg-white/20 border border-white/20 flex items-center justify-center text-sm shadow-sm shrink-0">
-                        {p.avatar || "🦊"}
-                      </span>
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className={`truncate max-w-[120px] ${isMe ? "font-black" : "font-bold"}`}>
-                          {p.nickname}
+              const myNick = (nickname || "").trim().toLowerCase();
+              const isMe1 = top1 && ((top1.id && playerIdRef.current && top1.id === playerIdRef.current) || (top1.nickname || "").trim().toLowerCase() === myNick);
+              const isMe2 = top2 && ((top2.id && playerIdRef.current && top2.id === playerIdRef.current) || (top2.nickname || "").trim().toLowerCase() === myNick);
+              const isMe3 = top3 && ((top3.id && playerIdRef.current && top3.id === playerIdRef.current) || (top3.nickname || "").trim().toLowerCase() === myNick);
+
+              return (
+                <div className="flex items-end justify-center gap-2 sm:gap-3 w-full pt-4 pb-1">
+                  {/* Step 2 (Left - Silver) */}
+                  <div className="flex flex-col items-center flex-1 min-w-0">
+                    {top2 ? (
+                      <div className="mb-2 text-center flex flex-col items-center w-full">
+                        <span className={`w-11 h-11 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center text-xl sm:text-2xl shadow-md ${
+                          isMe2 ? "bg-amber-400 border-2 border-white ring-2 ring-amber-300 text-slate-950" : "bg-white/20 border-2 border-white/40 text-white"
+                        }`}>
+                          {top2.avatar || "🥈"}
                         </span>
-                        {isMe && (
-                          <span className="px-1.5 py-0.2 bg-slate-950 text-amber-300 font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
-                            You
-                          </span>
-                        )}
+                        <div className="flex items-center justify-center gap-1 max-w-full mt-1.5 px-0.5">
+                          <p className="font-black text-[11px] sm:text-xs text-white truncate max-w-[75px] sm:max-w-[100px]">
+                            {top2.nickname}
+                          </p>
+                          {isMe2 && (
+                            <span className="px-1 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase shrink-0">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-mono text-[10px] sm:text-xs font-black text-amber-300 mt-0.5">
+                          {Number(top2.score || 0).toLocaleString()} pts
+                        </p>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0 pl-2">
-                      <span className="font-mono font-black text-sm block">
-                        {p.score?.toLocaleString()} pts
-                      </span>
+                    ) : (
+                      <div className="h-14 sm:h-16 flex items-center justify-center text-indigo-300/40 text-xs font-bold">—</div>
+                    )}
+                    <div className="w-full h-20 sm:h-24 bg-gradient-to-b from-blue-500/80 to-blue-600/90 rounded-t-2xl sm:rounded-t-3xl flex flex-col items-center justify-center text-white font-black shadow-inner border-t-2 border-blue-300/40">
+                      <span className="text-lg sm:text-xl">🥈</span>
+                      <span className="text-sm sm:text-base font-black text-white">2</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Step 1 (Center - Gold Champion) */}
+                  <div className="flex flex-col items-center flex-1 min-w-0 relative -mt-5">
+                    {top1 ? (
+                      <div className="mb-2 text-center flex flex-col items-center w-full">
+                        <span className="text-xl sm:text-2xl animate-bounce mb-0.5">👑</span>
+                        <span className={`w-13 h-13 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shadow-xl ${
+                          isMe1 ? "bg-amber-400 border-2 border-white ring-4 ring-amber-300 text-slate-950" : "bg-amber-500/40 border-2 border-amber-300 ring-4 ring-amber-400/30 text-amber-200"
+                        }`}>
+                          {top1.avatar || "🥇"}
+                        </span>
+                        <div className="flex items-center justify-center gap-1 max-w-full mt-1.5 px-0.5">
+                          <p className="font-black text-xs sm:text-sm text-white truncate max-w-[85px] sm:max-w-[110px]">
+                            {top1.nickname}
+                          </p>
+                          {isMe1 && (
+                            <span className="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-black text-[9px] rounded uppercase shrink-0 shadow-xs">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-mono text-xs sm:text-sm font-black text-amber-300 mt-0.5">
+                          {Number(top1.score || 0).toLocaleString()} pts
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-16 sm:h-20 flex items-center justify-center text-indigo-300/40 text-xs font-bold">—</div>
+                    )}
+                    <div className="w-full h-32 sm:h-40 bg-gradient-to-b from-amber-500 to-amber-600 rounded-t-2xl sm:rounded-t-3xl flex flex-col items-center justify-center text-white font-black shadow-xl border-t-2 border-amber-300">
+                      <span className="text-2xl sm:text-3xl">🥇</span>
+                      <span className="text-base sm:text-lg font-black text-amber-950">1</span>
+                    </div>
+                  </div>
+
+                  {/* Step 3 (Right - Bronze) */}
+                  <div className="flex flex-col items-center flex-1 min-w-0">
+                    {top3 ? (
+                      <div className="mb-2 text-center flex flex-col items-center w-full">
+                        <span className={`w-11 h-11 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center text-xl sm:text-2xl shadow-md ${
+                          isMe3 ? "bg-amber-400 border-2 border-white ring-2 ring-amber-300 text-slate-950" : "bg-white/20 border-2 border-amber-500/40 text-white"
+                        }`}>
+                          {top3.avatar || "🥉"}
+                        </span>
+                        <div className="flex items-center justify-center gap-1 max-w-full mt-1.5 px-0.5">
+                          <p className="font-black text-[11px] sm:text-xs text-white truncate max-w-[75px] sm:max-w-[100px]">
+                            {top3.nickname}
+                          </p>
+                          {isMe3 && (
+                            <span className="px-1 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase shrink-0">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-mono text-[10px] sm:text-xs font-black text-amber-300 mt-0.5">
+                          {Number(top3.score || 0).toLocaleString()} pts
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-14 sm:h-16 flex items-center justify-center text-indigo-300/40 text-xs font-bold">—</div>
+                    )}
+                    <div className="w-full h-16 sm:h-20 bg-gradient-to-b from-amber-700/60 to-amber-800/80 rounded-t-2xl sm:rounded-t-3xl flex flex-col items-center justify-center text-amber-200 font-black shadow-inner border-t-2 border-amber-500/40">
+                      <span className="text-lg sm:text-xl">🥉</span>
+                      <span className="text-sm sm:text-base font-black text-amber-200">3</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* If player is outside top 3, show their position row */}
             {rank > 3 && (
-              <div className="pt-1.5 space-y-1.5">
-                <div className="flex items-center justify-center gap-1 text-indigo-300/60 font-black text-xs py-0.5">
-                  <span>•</span>
-                  <span>•</span>
-                  <span>•</span>
+              <div className="pt-2 space-y-2 border-t border-dashed border-white/15 mt-2">
+                <div className="flex items-center justify-center gap-1.5 text-indigo-300/60 font-black text-xs py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
                 </div>
 
-                <div className="p-2.5 px-3 bg-amber-400 text-slate-950 rounded-xl shadow-md ring-2 ring-white flex items-center justify-between text-xs font-bold animate-fade-in">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="p-3 bg-amber-400 text-slate-950 rounded-xl shadow-lg ring-2 ring-white flex items-center justify-between text-xs font-bold animate-fade-in">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <span className="font-black text-xs sm:text-sm px-2 py-0.5 rounded-lg bg-slate-950/15 text-slate-950 shadow-inner shrink-0">
                       #{rank}
                     </span>
-                    <span className="w-7 h-7 rounded-lg bg-white/40 border border-black/10 flex items-center justify-center text-sm shrink-0">
+                    <span className="w-8 h-8 rounded-xl bg-black/10 border border-black/10 flex items-center justify-center text-base shrink-0">
                       {avatar || "🦊"}
                     </span>
                     <div className="flex flex-col text-left truncate">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-black text-slate-950 truncate max-w-[110px]">
+                        <span className="font-black text-slate-950 text-xs sm:text-sm truncate max-w-[130px]">
                           {nickname}
                         </span>
-                        <span className="px-1.5 py-0.2 bg-slate-950 text-amber-300 font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
+                        <span className="px-1.5 py-0.5 bg-slate-950 text-amber-300 font-black text-[9px] rounded-md uppercase tracking-wider shrink-0">
                           You
                         </span>
                       </div>
@@ -964,7 +1069,7 @@ export default function PlayerGameControllerPage() {
                   </div>
 
                   <div className="text-right shrink-0 pl-2">
-                    <span className="font-mono font-black text-sm sm:text-base block">
+                    <span className="font-mono font-black text-xs sm:text-sm block">
                       {score.toLocaleString()} pts
                     </span>
                     <span className="text-[10px] font-bold text-slate-800">
@@ -979,9 +1084,9 @@ export default function PlayerGameControllerPage() {
           {/* Play Again Button */}
           <button
             onClick={() => router.push("/play")}
-            className="shrink-0 w-full py-3 sm:py-3.5 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-95 font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-xl transition"
+            className="shrink-0 w-full py-3.5 bg-white text-indigo-900 hover:bg-indigo-50 active:scale-98 font-black text-sm sm:text-base rounded-2xl shadow-xl transition"
           >
-            Play Another Game 🎮
+            Play Another Game 🚀
           </button>
         </div>
       )}

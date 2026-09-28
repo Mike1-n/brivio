@@ -30,12 +30,32 @@ export async function GET(req: NextRequest) {
     const hostedSessions = await prisma.gameSession.findMany({
       where: sessionFilter,
       include: {
-        quiz: { select: { title: true } },
+        quiz: {
+          select: {
+            id: true,
+            title: true,
+            coverImage: true,
+            questions: { select: { id: true } },
+          },
+        },
         gameAnalytics: true,
+        players: {
+          orderBy: { score: "desc" },
+          select: {
+            id: true,
+            nickname: true,
+            avatar: true,
+            score: true,
+            rank: true,
+            streak: true,
+            isBot: true,
+            createdAt: true,
+          },
+        },
         _count: { select: { players: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 6,
+      take: 50,
     });
 
     const totalGamesHosted = await prisma.gameSession.count({ where: sessionFilter });
@@ -149,13 +169,29 @@ export async function GET(req: NextRequest) {
         totalAnswers,
       },
       performanceTrends,
-      recentSessions: hostedSessions.map((s) => ({
-        id: s.id,
-        title: s.quiz?.title || "Live Arena Game",
-        pin: s.pin,
-        createdAt: s.createdAt,
-        playersCount: s._count.players || s.gameAnalytics?.totalParticipants || 0,
-      })),
+      recentSessions: hostedSessions.map((s) => {
+        const scores = (s.players || []).map((p) => p.score);
+        const totalP = s.players?.length || s.gameAnalytics?.totalParticipants || 0;
+        const highest = scores.length > 0 ? Math.max(...scores) : (s.gameAnalytics?.highestScore || 0);
+        const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : (s.gameAnalytics?.averageScore || 0);
+        return {
+          id: s.id,
+          title: s.quiz?.title || "Live Arena Game",
+          pin: s.pin,
+          status: s.status,
+          createdAt: s.createdAt,
+          endedAt: s.endedAt,
+          totalQuestions: s.quiz?.questions?.length || 0,
+          playersCount: totalP,
+          totalParticipants: totalP,
+          highestScore: highest,
+          avgScore: avg,
+          players: (s.players || []).map((p, idx) => ({
+            ...p,
+            rank: p.rank || idx + 1,
+          })),
+        };
+      }),
     });
   } catch (error) {
     console.error("Analytics fetch error:", error);
