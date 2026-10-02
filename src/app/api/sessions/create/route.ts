@@ -40,13 +40,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Quiz ID is required" }, { status: 400 });
     }
 
-    // Verify quiz exists and has questions
+    // Verify quiz exists and has questions using lightweight _count
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
-      include: { questions: true },
+      select: {
+        id: true,
+        _count: { select: { questions: true } },
+      },
     });
 
-    if (!quiz || quiz.questions.length === 0) {
+    if (!quiz || quiz._count.questions === 0) {
       return NextResponse.json({ error: "Quiz not found or has no questions" }, { status: 400 });
     }
 

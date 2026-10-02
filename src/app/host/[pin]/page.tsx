@@ -22,6 +22,10 @@ export default function HostScreenPage() {
   const [totalTimeLimit, setTotalTimeLimit] = useState(20);
   const [players, setPlayers] = useState<any[]>([]);
   const [answerStats, setAnswerStats] = useState<any>({ counts: {}, percentages: {}, totalAnswers: 0, correctAnswerId: null });
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [showDoublePointsSplash, setShowDoublePointsSplash] = useState(false);
+  const lastDoublePointsQuestionIndexRef = useRef<number | null>(null);
+  const doublePointsTimeoutRef = useRef<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -64,13 +68,17 @@ export default function HostScreenPage() {
     socket.on("room:player_list", handlePlayersUpdated);
 
     // Fast sync interval in lobby to ensure immediate visual updates
-    const syncInterval = setInterval(() => {
+    let syncInterval: any = setInterval(() => {
       if (socket.connected) {
         socket.emit("host:get_players", { pin });
       }
-    }, 1200);
+    }, 1500);
 
     socket.on("game:starting", () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+      }
       setGameState("STARTING");
       soundEffects.playCountdownTick();
       let c = 3;
@@ -88,17 +96,47 @@ export default function HostScreenPage() {
 
     const handleHostQuestion = (data: any) => {
       setGameState("QUESTION");
-      setCurrentQuestion(data.question || data);
+      const q = data.question || data;
+      setCurrentQuestion(q);
       setQuestionIndex(data.questionIndex);
       setTotalQuestions(data.totalQuestions);
-      const limit = data.timeLimit || data.question?.timeLimit || 20;
+      setAnsweredCount(0);
+      const limit = data.timeLimit || q?.timeLimit || 20;
       setTotalTimeLimit(limit);
       setTimeRemaining(limit);
+
+      const isDouble = Boolean(
+        Number(data?.points || q?.points) >= 2000 ||
+        data?.isDoublePoints ||
+        q?.isDoublePoints ||
+        data?.pointsMultiplier === 2 ||
+        q?.pointsMultiplier === 2
+      );
+      if (isDouble && lastDoublePointsQuestionIndexRef.current !== data.questionIndex) {
+        lastDoublePointsQuestionIndexRef.current = data.questionIndex;
+        setShowDoublePointsSplash(true);
+        try {
+          soundEffects.playDoublePoints();
+        } catch (_) {}
+        if (doublePointsTimeoutRef.current) clearTimeout(doublePointsTimeoutRef.current);
+        doublePointsTimeoutRef.current = setTimeout(() => {
+          setShowDoublePointsSplash(false);
+        }, 3000);
+      } else if (!isDouble) {
+        setShowDoublePointsSplash(false);
+      }
     };
 
     socket.on("host:question", handleHostQuestion);
     socket.on("game:question", handleHostQuestion);
     socket.on("game:question_active", handleHostQuestion);
+
+    const handleAnswerReceived = (data: any) => {
+      if (typeof data?.answeredCount === "number") {
+        setAnsweredCount(data.answeredCount);
+      }
+    };
+    socket.on("host:answer_received", handleAnswerReceived);
 
     socket.on("timer:tick", ({ timeRemaining: t }: any) => {
       setTimeRemaining(t);
@@ -113,7 +151,13 @@ export default function HostScreenPage() {
 
     socket.on("game:results", (data: any) => {
       setGameState("RESULTS");
-      setAnswerStats(data.stats);
+      setShowDoublePointsSplash(false);
+      if (data.stats) {
+        setAnswerStats(data.stats);
+        if (typeof data.stats.totalAnswers === "number") {
+          setAnsweredCount(data.stats.totalAnswers);
+        }
+      }
       if (data.leaderboard) {
         setLeaderboard(data.leaderboard);
       }
@@ -122,7 +166,13 @@ export default function HostScreenPage() {
 
     socket.on("host:question_results", (data: any) => {
       setGameState("RESULTS");
-      if (data.stats) setAnswerStats(data.stats);
+      setShowDoublePointsSplash(false);
+      if (data.stats) {
+        setAnswerStats(data.stats);
+        if (typeof data.stats.totalAnswers === "number") {
+          setAnsweredCount(data.stats.totalAnswers);
+        }
+      }
       if (data.leaderboard) {
         setLeaderboard(data.leaderboard);
       }
@@ -130,16 +180,19 @@ export default function HostScreenPage() {
 
     socket.on("game:leaderboard", (data: any) => {
       setGameState("LEADERBOARD");
+      setShowDoublePointsSplash(false);
       setLeaderboard(data.leaderboard || []);
     });
 
     socket.on("host:leaderboard", (data: any) => {
       setGameState("LEADERBOARD");
+      setShowDoublePointsSplash(false);
       setLeaderboard(data.leaderboard || []);
     });
 
     socket.on("game:podium", (data: any) => {
       setGameState("PODIUM");
+      setShowDoublePointsSplash(false);
       setLeaderboard(data.topPlayers || []);
       soundEffects.playPodiumFanfare();
       confetti({
@@ -150,6 +203,7 @@ export default function HostScreenPage() {
     });
 
     return () => {
+      if (doublePointsTimeoutRef.current) clearTimeout(doublePointsTimeoutRef.current);
       clearInterval(syncInterval);
       socket.off("connect", joinAsHost);
       socket.off("host:room_created", handlePlayersUpdated);
@@ -161,6 +215,7 @@ export default function HostScreenPage() {
       socket.off("host:question", handleHostQuestion);
       socket.off("game:question", handleHostQuestion);
       socket.off("game:question_active", handleHostQuestion);
+      socket.off("host:answer_received", handleAnswerReceived);
       socket.off("timer:tick");
       socket.off("game:timer_tick");
       socket.off("game:results");
@@ -206,7 +261,54 @@ export default function HostScreenPage() {
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full bg-gradient-to-b from-[#25094d] via-[#3b126d] to-[#1a0433] text-white flex flex-col justify-between p-4 sm:p-6 md:p-8 font-sans select-none overflow-hidden">
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-gradient-to-b from-[#25094d] via-[#3b126d] to-[#1a0433] text-white flex flex-col justify-between p-4 sm:p-6 md:p-8 font-sans overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 3-SECOND DOUBLE POINTS ANIMATED SPLASH SCREEN OVERLAY */}
+      {/* ========================================================================= */}
+      {showDoublePointsSplash && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-600 via-purple-900 to-indigo-950 text-white animate-fade-in overflow-hidden">
+          {/* Glowing Ambient Background Aura */}
+          <div className="absolute w-96 h-96 md:w-[32rem] md:h-[32rem] rounded-full bg-amber-400/25 blur-3xl animate-pulse pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col items-center text-center space-y-6 max-w-xl animate-double-points">
+            {/* Top Glowing Pill Badge */}
+            <div className="px-6 py-2 rounded-full bg-amber-400 text-slate-950 font-black text-sm md:text-base uppercase tracking-widest shadow-2xl flex items-center gap-2 ring-8 ring-amber-300/40">
+              <span className="text-xl">⚡</span>
+              <span>DOUBLE POINTS ROUND</span>
+              <span className="text-xl">⚡</span>
+            </div>
+
+            {/* Main Giant *2 Icon Box */}
+            <div className="relative my-2">
+              <div className="w-48 h-48 sm:w-60 sm:h-60 rounded-[2.5rem] bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-400 p-1.5 shadow-[0_0_80px_rgba(251,191,36,0.8)] rotate-3 flex items-center justify-center border-4 border-white/80">
+                <div className="w-full h-full bg-slate-950/85 rounded-[2rem] flex flex-col items-center justify-center">
+                  <span className="text-8xl sm:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-300 to-amber-500 tracking-tighter drop-shadow-[0_6px_16px_rgba(0,0,0,0.95)]">
+                    *2
+                  </span>
+                  <span className="text-xs sm:text-sm font-black uppercase tracking-widest text-amber-200 -mt-2">
+                    Double Points
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white drop-shadow-xl">
+                *2 Double Points!
+              </h2>
+              <p className="text-base sm:text-lg font-bold text-amber-100/95 max-w-md leading-relaxed mx-auto">
+                Speed and accuracy award 2X maximum points this round!
+              </p>
+            </div>
+
+            {/* 3-second animated progress bar */}
+            <div className="w-64 sm:w-80 h-3.5 bg-black/40 rounded-full overflow-hidden border border-amber-300/40 p-0.5 mt-2 shadow-inner">
+              <div className="h-full bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-500 rounded-full animate-shrink-3s" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. FULL-BLEED LOBBY VIEW (NO CARDS) */}
       {/* ========================================================================= */}
@@ -316,30 +418,33 @@ export default function HostScreenPage() {
       {/* ========================================================================= */}
       {(gameState === "QUESTION" || gameState === "RESULTS") && currentQuestion && (
         <div className="h-full flex-1 flex flex-col justify-between w-full animate-fade-in space-y-2.5 sm:space-y-4">
-          {/* Clean Top Bar Header (Question index format: 2/10, Game PIN, Leader Callout, and Action buttons) */}
+          {/* Clean Top Bar Header (Question index format: 2/10, Game PIN, Live Answer Count, and Action buttons) */}
           <div className="flex items-center justify-between border-b border-purple-400/20 pb-2.5 sm:pb-3 shrink-0 gap-2">
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-white/10 rounded-xl text-xs sm:text-sm font-black border border-white/15 tracking-wide">
                 {questionIndex + 1}/{totalQuestions}
               </span>
               <span className="font-mono text-xs sm:text-sm font-black bg-indigo-900/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-indigo-400/30">
                 PIN: {pin}
               </span>
-              {(() => {
-                const currentLineup = (leaderboard && leaderboard.length > 0)
-                  ? leaderboard
-                  : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
-                if (currentLineup[0] && currentLineup[0].nickname) {
-                  return (
-                    <div className="hidden sm:flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/40 px-3 py-1 rounded-xl text-xs font-bold text-amber-200 shadow-sm">
-                      <span>👑 Rank #1:</span>
-                      <span className="font-black text-white truncate max-w-[100px]">{currentLineup[0].nickname}</span>
-                      <span className="font-mono text-amber-300 font-extrabold">({Number(currentLineup[0].score || 0).toLocaleString()} pts)</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              {(Number(currentQuestion?.points) >= 2000 || currentQuestion?.isDoublePoints) && (
+                <span className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 rounded-xl text-xs sm:text-sm font-black border border-amber-300 shadow-md flex items-center gap-1 animate-pulse">
+                  <span>⚡</span>
+                  <span>*2 Double Points (2,000 pts)</span>
+                </span>
+              )}
+              {/* LIVE ANSWER COUNTER BADGE FOR HOST */}
+              <div
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border text-xs sm:text-sm font-black transition-all shadow-md ${
+                  answeredCount >= players.length && players.length > 0
+                    ? "bg-emerald-500/25 border-emerald-400/60 text-emerald-300 ring-1 ring-emerald-400/30 animate-pulse"
+                    : "bg-purple-900/60 border-purple-400/40 text-purple-200"
+                }`}
+              >
+                <span>⚡ Answers:</span>
+                <span className="font-mono font-black text-white">{answeredCount}</span>
+                <span className="text-purple-300/80">/ {players.length}</span>
+              </div>
             </div>
 
             {/* Host Controls: TWO BUTTONS (Leaderboard & Next) */}
@@ -404,81 +509,17 @@ export default function HostScreenPage() {
             </div>
           </div>
 
-          {/* LIVE RANKS & STANDINGS TICKER (DISPLAYED DIRECTLY ON RESULTS SCREEN) */}
-          {gameState === "RESULTS" && (
-            <>
-              {currentQuestion.explanation && (
-                <div className="w-full max-w-4xl mx-auto bg-amber-500/20 border border-amber-400/40 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 text-left shadow-xl shrink-0 space-y-1">
-                  <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-wider">
-                    <span>💡</span>
-                    <span>Answer Explanation</span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-semibold text-white/95 leading-relaxed break-words [overflow-wrap:anywhere]">
-                    {currentQuestion.explanation}
-                  </p>
-                </div>
-              )}
-
-              <div className="w-full bg-purple-950/80 border border-purple-400/30 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl shrink-0 space-y-2">
-                <div className="flex items-center justify-between border-b border-purple-400/20 pb-1.5">
-                  <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                    Live Player Standings & Ranks
-                  </span>
-                  <button
-                    onClick={handleShowLeaderboard}
-                    className="text-[10px] sm:text-xs font-extrabold text-purple-200 hover:text-white underline"
-                  >
-                    Full Standings →
-                  </button>
-                </div>
-
-              <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 custom-scrollbar">
-                {(() => {
-                  const currentLineup = (leaderboard && leaderboard.length > 0)
-                    ? leaderboard
-                    : [...players].sort((a, b) => ((b.score ?? b.points) || 0) - ((a.score ?? a.points) || 0));
-
-                  if (currentLineup.length === 0) {
-                    return <span className="text-xs text-purple-300 italic">No player answers recorded yet.</span>;
-                  }
-
-                  return currentLineup.slice(0, 6).map((p: any, idx: number) => {
-                    const medals = ["🥇", "🥈", "🥉"];
-                    const earned = Number(p.lastPointsEarned ?? p.pointsEarned ?? p.pointsAwarded ?? 0);
-                    const totalScore = Number(p.score ?? p.totalScore ?? p.points ?? 0);
-
-                    return (
-                      <div
-                        key={p.id || idx}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-bold shadow-md ${
-                          idx === 0
-                            ? "bg-amber-500/25 border-amber-400/50 text-amber-200 ring-1 ring-amber-400/30"
-                            : idx === 1
-                            ? "bg-slate-400/20 border-slate-300/40 text-slate-200"
-                            : idx === 2
-                            ? "bg-amber-700/25 border-amber-600/40 text-amber-300"
-                            : "bg-white/10 border-white/15 text-white"
-                        }`}
-                      >
-                        <span className="font-black text-xs sm:text-sm">{idx < 3 ? medals[idx] : `#${idx + 1}`}</span>
-                        <span>{p.avatar || "🦊"}</span>
-                        <span className="font-extrabold max-w-[90px] sm:max-w-[120px] truncate text-white">{p.nickname}</span>
-                        {earned > 0 && (
-                          <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-1.5 py-0.2 rounded">
-                            +{earned}
-                          </span>
-                        )}
-                        <span className="font-mono font-black text-amber-300 text-xs ml-0.5">
-                          {totalScore.toLocaleString()} pts
-                        </span>
-                      </div>
-                    );
-                  });
-                })()}
+          {/* Answer Explanation Banner (On Results Screen if explanation provided) */}
+          {gameState === "RESULTS" && currentQuestion.explanation && (
+            <div className="w-full max-w-4xl mx-auto bg-amber-500/20 border border-amber-400/40 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 text-left shadow-xl shrink-0 space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-wider">
+                <span>💡</span>
+                <span>Answer Explanation</span>
               </div>
+              <p className="text-xs sm:text-sm font-semibold text-white/95 leading-relaxed break-words [overflow-wrap:anywhere]">
+                {currentQuestion.explanation}
+              </p>
             </div>
-            </>
           )}
 
           {/* Full-Width 2x2 Answers Display Across Bottom (Responsive layout and fonts) */}
@@ -509,23 +550,31 @@ export default function HostScreenPage() {
                 ? "text-xs sm:text-base md:text-lg"
                 : "text-xs sm:text-base md:text-xl";
 
-              const isCorrect = ans.isCorrect;
+              const isCorrect = Boolean(ans.isCorrect);
               const isRevealed = gameState === "RESULTS";
-              const votes = answerStats.counts?.[ans?.id] || 0;
-              const pct = answerStats.percentages?.[ans?.id] !== undefined ? answerStats.percentages[ans.id] : 0;
+              const votes = answerStats?.counts?.[ans?.id] ?? answerStats?.counts?.[String(ans?.id)] ?? 0;
+              const pct = answerStats?.percentages?.[ans?.id] ?? answerStats?.percentages?.[String(ans?.id)] ?? (answerStats?.totalAnswers > 0 ? Math.round((votes / answerStats.totalAnswers) * 100) : 0);
 
               return (
                 <div
                   key={ans.id || idx}
-                  className={`w-full min-h-[48px] sm:min-h-[60px] p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl font-bold sm:font-black flex items-center justify-between shadow-xl transition-all duration-300 ${
+                  className={`relative overflow-hidden w-full min-h-[50px] sm:min-h-[64px] p-2.5 sm:p-3.5 md:p-4 rounded-xl sm:rounded-2xl font-bold sm:font-black flex items-center justify-between shadow-xl transition-all duration-300 ${
                     style.bg
                   } ${
-                    isRevealed && !isCorrect ? "opacity-35 grayscale" : ""
+                    isRevealed && !isCorrect ? "opacity-40 grayscale-[30%]" : ""
                   } ${
                     isRevealed && isCorrect ? "ring-2 sm:ring-4 ring-white shadow-emerald-500/50 scale-[1.01]" : ""
                   }`}
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  {/* Visual Background Percentage Bar Fill on Results Screen */}
+                  {isRevealed && (
+                    <div
+                      className="absolute inset-y-0 left-0 bg-white/20 transition-all duration-1000 ease-out pointer-events-none"
+                      style={{ width: `${pct}%` }}
+                    />
+                  )}
+
+                  <div className="relative z-10 flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     <span className="text-sm sm:text-xl md:text-2xl opacity-90 shrink-0">
                       {style.icon}
                     </span>
@@ -535,12 +584,12 @@ export default function HostScreenPage() {
                   </div>
 
                   {isRevealed && (
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2 sm:ml-3">
-                      <span className="text-[10px] sm:text-xs md:text-sm font-mono bg-black/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg">
-                        {votes} ({pct}%)
+                    <div className="relative z-10 flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2 sm:ml-3">
+                      <span className="text-xs sm:text-sm font-mono font-black bg-black/40 border border-white/20 px-2 sm:px-3 py-0.5 sm:py-1 rounded-md sm:rounded-lg shadow-inner text-white">
+                        {votes} {votes === 1 ? "answer" : "answers"} ({pct}%)
                       </span>
                       {isCorrect && (
-                        <span className="text-[10px] sm:text-xs bg-white text-emerald-700 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-black uppercase shadow">
+                        <span className="text-[10px] sm:text-xs bg-white text-emerald-800 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-black uppercase shadow border border-emerald-300">
                           ✓ Correct
                         </span>
                       )}

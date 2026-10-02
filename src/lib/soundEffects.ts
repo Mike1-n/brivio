@@ -252,6 +252,36 @@ class SoundEngine {
     return this.playCountdownTick(isFinal);
   }
 
+  /** Double points energetic power-up sound */
+  public playDoublePointsFanfare() {
+    if (this.isMuted) return;
+    const ctx = this.initCtx();
+    if (!ctx) return;
+
+    const notes = [440, 554.37, 659.25, 880, 1108.73, 1318.51];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.05);
+
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.05);
+      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + i * 0.05 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.05 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(ctx.currentTime + i * 0.05);
+      osc.stop(ctx.currentTime + i * 0.05 + 0.35);
+    });
+  }
+
+  public playDoublePoints() {
+    return this.playDoublePointsFanfare();
+  }
+
   public stopLobbyMusic() {
     if (this.lobbyInterval) {
       clearInterval(this.lobbyInterval);

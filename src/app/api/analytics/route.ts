@@ -23,73 +23,85 @@ export async function GET(req: NextRequest) {
     const userFilter = isGlobalAdmin ? {} : { authorId: user.id };
     const sessionFilter = isGlobalAdmin ? {} : { hostId: user.id };
 
-    // 1. Total Quizzes
-    const totalQuizzes = await prisma.quiz.count({ where: userFilter });
+    // Execute queries in parallel using Promise.all for maximum throughput
+    const [
+      totalQuizzes,
+      hostedSessions,
+      totalGamesHosted,
+      userQuizzes,
+      playerAnswers,
+      gamePlayers,
+    ] = await Promise.all([
+      // 1. Total Quizzes
+      prisma.quiz.count({ where: userFilter }),
 
-    // 2. Total Sessions & Recent Games
-    const hostedSessions = await prisma.gameSession.findMany({
-      where: sessionFilter,
-      include: {
-        quiz: {
-          select: {
-            id: true,
-            title: true,
-            coverImage: true,
-            questions: { select: { id: true } },
+      // 2. Total Sessions & Recent Games
+      prisma.gameSession.findMany({
+        where: sessionFilter,
+        include: {
+          quiz: {
+            select: {
+              id: true,
+              title: true,
+              coverImage: true,
+              questions: { select: { id: true } },
+            },
+          },
+          gameAnalytics: true,
+          players: {
+            orderBy: { score: "desc" },
+            select: {
+              id: true,
+              nickname: true,
+              avatar: true,
+              score: true,
+              rank: true,
+              streak: true,
+              isBot: true,
+              createdAt: true,
+            },
+          },
+          _count: { select: { players: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+
+      // 3. Count total games
+      prisma.gameSession.count({ where: sessionFilter }),
+
+      // 4. User quizzes list for challenge aggregation
+      prisma.quiz.findMany({
+        where: userFilter,
+        select: { id: true },
+      }),
+
+      // 5. Real Player Accuracy & Answers (User's Games)
+      prisma.playerAnswer.findMany({
+        where: isGlobalAdmin ? {} : {
+          player: {
+            session: { hostId: user.id },
           },
         },
-        gameAnalytics: true,
-        players: {
-          orderBy: { score: "desc" },
-          select: {
-            id: true,
-            nickname: true,
-            avatar: true,
-            score: true,
-            rank: true,
-            streak: true,
-            isBot: true,
-            createdAt: true,
-          },
-        },
-        _count: { select: { players: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
+        select: { isCorrect: true, createdAt: true },
+      }),
 
-    const totalGamesHosted = await prisma.gameSession.count({ where: sessionFilter });
-
-    // 3. User quizzes list for challenge aggregation
-    const userQuizzes = await prisma.quiz.findMany({
-      where: userFilter,
-      select: { id: true },
-    });
-    const userQuizIds = userQuizzes.map((q) => q.id);
-
-    // 4. Real Player Accuracy & Answers (User's Games)
-    const playerAnswers = await prisma.playerAnswer.findMany({
-      where: isGlobalAdmin ? {} : {
-        player: {
+      // 6. Real Participants & Real Average Score
+      prisma.gamePlayer.findMany({
+        where: isGlobalAdmin ? { isBot: false } : {
           session: { hostId: user.id },
+          isBot: false,
         },
-      },
-      select: { isCorrect: true, createdAt: true },
-    });
+        select: { score: true, createdAt: true },
+      }),
+    ]);
+
+    const userQuizIds = userQuizzes.map((q) => q.id);
 
     const totalAnswers = playerAnswers.length;
     const correctAnswers = playerAnswers.filter((a) => a.isCorrect).length;
     const correctPct = totalAnswers > 0 ? Math.round((correctAnswers / totalAnswers) * 100) : 0;
     const incorrectPct = totalAnswers > 0 ? 100 - correctPct : 0;
-
-    // 5. Real Participants & Real Average Score
-    const gamePlayers = await prisma.gamePlayer.findMany({
-      where: isGlobalAdmin ? { isBot: false } : {
-        session: { hostId: user.id },
-        isBot: false,
-      },
-      select: { score: true, createdAt: true },
-    });
 
     const challengeAttempts = await prisma.challengeAttempt.findMany({
       where: isGlobalAdmin ? {} : {

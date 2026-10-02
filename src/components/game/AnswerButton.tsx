@@ -97,7 +97,7 @@ export function AnswerButton({
       onClick={handleClick}
       disabled={disabled}
       className={cn(
-        "w-full h-full min-h-[110px] md:min-h-[140px] rounded-2xl p-4 flex items-center justify-center gap-3 text-white font-extrabold text-lg md:text-xl shadow-lg transition-all transform select-none active:scale-95 disabled:cursor-not-allowed",
+        "w-full h-full min-h-[110px] md:min-h-[140px] rounded-2xl p-4 flex items-center justify-center gap-3 text-white font-extrabold text-lg md:text-xl shadow-lg transition-all transform active:scale-95 disabled:cursor-not-allowed",
         item.colorClass,
         isSelected && "ring-4 ring-white shadow-2xl scale-[0.98] brightness-110",
         disabled && !isSelected && "opacity-60"

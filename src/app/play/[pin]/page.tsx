@@ -47,6 +47,9 @@ export default function PlayerGameControllerPage() {
   const selectedAnswerIdRef = useRef<string | null>(null);
 
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [showDoublePointsSplash, setShowDoublePointsSplash] = useState(false);
+  const lastDoublePointsQuestionIndexRef = useRef<number | null>(null);
+  const doublePointsTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
     currentQuestionRef.current = currentQuestion;
@@ -55,6 +58,18 @@ export default function PlayerGameControllerPage() {
   useEffect(() => {
     selectedAnswerIdRef.current = selectedAnswerId;
   }, [selectedAnswerId]);
+
+  // Auto-recovery if question packet was missed or delayed on mobile network
+  useEffect(() => {
+    if ((gameState === "QUESTION" || gameState === "PREVIEW") && !currentQuestion) {
+      const timer = setTimeout(() => {
+        if (socketRef.current && socketRef.current.connected) {
+          socketRef.current.emit("player:request_state", { pin, playerId: playerIdRef.current });
+        }
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState, currentQuestion, pin]);
 
   useEffect(() => {
     const savedNick = localStorage.getItem("quiz_player_nickname") || "Player";
@@ -87,6 +102,31 @@ export default function PlayerGameControllerPage() {
     if (socket.connected) {
       joinRoom();
     }
+
+    const checkAndTriggerDoublePoints = (data: any) => {
+      const q = data?.question || data;
+      const isDouble = Boolean(
+        Number(data?.points || q?.points) >= 2000 ||
+        data?.isDoublePoints ||
+        q?.isDoublePoints ||
+        data?.pointsMultiplier === 2 ||
+        q?.pointsMultiplier === 2
+      );
+      const qIdx = data?.questionIndex ?? 0;
+      if (isDouble && lastDoublePointsQuestionIndexRef.current !== qIdx) {
+        lastDoublePointsQuestionIndexRef.current = qIdx;
+        setShowDoublePointsSplash(true);
+        try {
+          soundEffects.playDoublePoints();
+        } catch (_) {}
+        if (doublePointsTimeoutRef.current) clearTimeout(doublePointsTimeoutRef.current);
+        doublePointsTimeoutRef.current = setTimeout(() => {
+          setShowDoublePointsSplash(false);
+        }, 3000);
+      } else if (!isDouble) {
+        setShowDoublePointsSplash(false);
+      }
+    };
 
     socket.on("player:joined", (data: any) => {
       setJoinError(null);
@@ -134,6 +174,29 @@ export default function PlayerGameControllerPage() {
       soundEffects.playCountdownTick();
     });
 
+    // Instant State Recovery handler
+    socket.on("player:state_sync", (data: any) => {
+      if (data.status === "QUESTION" || data.status === "PREVIEW") {
+        setGameState(data.status);
+        setCurrentQuestion(data.question || data);
+        setQuestionIndex(data.questionIndex || 0);
+        setTotalQuestions(data.totalQuestions || 10);
+        const limit = data.timeLimit || 20;
+        setTotalTimeLimit(limit);
+        setTimeRemaining(data.timeRemaining !== undefined ? data.timeRemaining : limit);
+        if (data.status === "PREVIEW") {
+          setPreviewSeconds(data.previewSeconds !== undefined ? data.previewSeconds : 5);
+        }
+        checkAndTriggerDoublePoints(data);
+      } else if (data.status === "RESULTS" || data.status === "LEADERBOARD") {
+        setGameState("RESULTS");
+        setShowDoublePointsSplash(false);
+      } else if (data.status === "PODIUM") {
+        setGameState("PODIUM");
+        setShowDoublePointsSplash(false);
+      }
+    });
+
     socket.on("game:question_preview", (data: any) => {
       setGameState("PREVIEW");
       setCurrentQuestion(data.question || data);
@@ -146,6 +209,7 @@ export default function PlayerGameControllerPage() {
       setSelectedAnswerId(null);
       setSelectedAnswerText("");
       setLastResult(null);
+      checkAndTriggerDoublePoints(data);
     });
 
     socket.on("preview:tick", ({ previewRemaining }: any) => {
@@ -165,6 +229,7 @@ export default function PlayerGameControllerPage() {
       setLastResult(null);
       startTimeRef.current = Date.now();
       soundEffects.playPop();
+      checkAndTriggerDoublePoints(data);
     });
 
     socket.on("game:question", (data: any) => {
@@ -191,6 +256,7 @@ export default function PlayerGameControllerPage() {
         setLastResult(null);
         startTimeRef.current = Date.now();
       }
+      checkAndTriggerDoublePoints(data);
     });
 
     socket.on("timer:tick", ({ timeRemaining: t }: any) => {
@@ -291,6 +357,7 @@ export default function PlayerGameControllerPage() {
     });
 
     return () => {
+      if (doublePointsTimeoutRef.current) clearTimeout(doublePointsTimeoutRef.current);
       socket.off("connect", joinRoom);
       socket.off("player:joined");
       socket.off("player:join_error");
@@ -309,6 +376,7 @@ export default function PlayerGameControllerPage() {
       socket.off("game:results");
       socket.off("game:leaderboard");
       socket.off("game:podium");
+      socket.off("player:state_sync");
     };
   }, [pin]);
 
@@ -359,7 +427,53 @@ export default function PlayerGameControllerPage() {
   const progressPercent = totalTimeLimit > 0 ? Math.min(100, Math.max(0, (timeRemaining / totalTimeLimit) * 100)) : 0;
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-gradient-to-b from-[#3b0764] via-[#4c1d95] to-[#2e1065] flex flex-col justify-between p-2.5 sm:p-4 font-sans text-white select-none max-w-md sm:max-w-lg mx-auto w-full overflow-hidden">
+    <div className="h-[100dvh] max-h-[100dvh] bg-gradient-to-b from-[#3b0764] via-[#4c1d95] to-[#2e1065] flex flex-col justify-between p-2.5 sm:p-4 font-sans text-white max-w-md sm:max-w-lg mx-auto w-full overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 3-SECOND DOUBLE POINTS ANIMATED SPLASH SCREEN OVERLAY */}
+      {/* ========================================================================= */}
+      {showDoublePointsSplash && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-br from-amber-600 via-purple-900 to-indigo-950 text-white animate-fade-in overflow-hidden">
+          {/* Glowing Ambient Background Aura */}
+          <div className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-amber-400/25 blur-3xl animate-pulse pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col items-center text-center space-y-4 sm:space-y-5 max-w-sm sm:max-w-md animate-double-points">
+            {/* Top Glowing Pill Badge */}
+            <div className="px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-widest shadow-xl flex items-center gap-1.5 ring-4 ring-amber-300/40">
+              <span className="text-base sm:text-lg">⚡</span>
+              <span>DOUBLE POINTS ROUND</span>
+              <span className="text-base sm:text-lg">⚡</span>
+            </div>
+
+            {/* Main Giant *2 Icon Box */}
+            <div className="relative my-1 sm:my-2">
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-400 p-1 shadow-[0_0_60px_rgba(251,191,36,0.7)] rotate-3 flex items-center justify-center border-4 border-white/70">
+                <div className="w-full h-full bg-slate-950/85 rounded-[22px] flex flex-col items-center justify-center">
+                  <span className="text-6xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-300 to-amber-500 tracking-tighter drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
+                    *2
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-200 -mt-1">
+                    Double Points
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1 sm:space-y-1.5">
+              <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white drop-shadow-lg">
+                *2 Double Points!
+              </h2>
+              <p className="text-xs sm:text-sm font-bold text-amber-100/90 max-w-xs leading-relaxed">
+                Speed and accuracy award 2X maximum points! Get ready!
+              </p>
+            </div>
+
+            {/* 3-second animated progress bar */}
+            <div className="w-44 sm:w-52 h-2.5 bg-black/40 rounded-full overflow-hidden border border-amber-300/40 p-0.5 mt-2 shadow-inner">
+              <div className="h-full bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-500 rounded-full animate-shrink-3s" />
+            </div>
+          </div>
+        </div>
+      )}
       {/* JOIN ERROR MODAL */}
       {joinError && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
@@ -420,8 +534,16 @@ export default function PlayerGameControllerPage() {
                 Question {questionIndex + 1} of {totalQuestions}
               </span>
             </div>
-            <div className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 font-black text-[11px] uppercase tracking-wider">
-              Get Ready!
+            <div className="flex items-center gap-1.5">
+              {(Number(currentQuestion?.points) >= 2000 || currentQuestion?.isDoublePoints) && (
+                <div className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black text-[10px] sm:text-[11px] uppercase tracking-wider rounded-full shadow-sm flex items-center gap-1 border border-amber-300 animate-pulse">
+                  <span>⚡</span>
+                  <span>*2 Double Points</span>
+                </div>
+              )}
+              <div className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 font-black text-[11px] uppercase tracking-wider">
+                Get Ready!
+              </div>
             </div>
           </div>
 
@@ -467,23 +589,44 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
 
+      {/* 2.5. FALLBACK SYNCING (If mobile device was delayed loading question) */}
+      {(gameState === "QUESTION" || gameState === "PREVIEW") && !currentQuestion && (
+        <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-16 text-center animate-fade-in">
+          <div className="w-16 h-16 rounded-3xl bg-amber-400 border-2 border-white flex items-center justify-center text-3xl shadow-xl animate-bounce">
+            ⚡
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-white">Connecting Question...</h3>
+            <p className="text-xs font-bold text-slate-300">Synchronizing live with host screen</p>
+          </div>
+        </div>
+      )}
+
       {/* 3. ACTIVE QUESTION PHASE (MATCHING SAMPLE SCREENSHOT PERFECTLY) */}
       {gameState === "QUESTION" && currentQuestion && (
         <div className="h-full flex-1 flex flex-col justify-between w-full max-w-md mx-auto space-y-1.5 sm:space-y-2 animate-fade-in overflow-hidden">
-          {/* Top Bar: Question Number Circle + Quiz Badge */}
+          {/* Top Bar: Question Number Circle + Double Points & Quiz Badges */}
           <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 text-slate-900 font-black text-sm flex items-center justify-center shadow-lg border border-slate-200">
               {questionIndex + 1}
             </div>
 
-            <div className="px-3.5 py-1 bg-white/95 text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
-              <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
-                <span className="bg-[#E21B3C] rounded-[1px]" />
-                <span className="bg-[#1368CE] rounded-[1px]" />
-                <span className="bg-[#D89E00] rounded-[1px]" />
-                <span className="bg-[#26890C] rounded-[1px]" />
+            <div className="flex items-center gap-1.5">
+              {(Number(currentQuestion?.points) >= 2000 || currentQuestion?.isDoublePoints) && (
+                <div className="px-2.5 py-1 bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black text-xs rounded-full shadow-md flex items-center gap-1 border border-amber-300 animate-pulse">
+                  <span>⚡</span>
+                  <span>2X Points</span>
+                </div>
+              )}
+              <div className="px-3.5 py-1 bg-white/95 text-slate-900 font-black text-xs rounded-full shadow-md flex items-center gap-1.5 border border-white/60">
+                <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+                  <span className="bg-[#E21B3C] rounded-[1px]" />
+                  <span className="bg-[#1368CE] rounded-[1px]" />
+                  <span className="bg-[#D89E00] rounded-[1px]" />
+                  <span className="bg-[#26890C] rounded-[1px]" />
+                </div>
+                <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
               </div>
-              <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
             </div>
 
             <div className="w-8 sm:w-9" /> {/* Spacer */}
