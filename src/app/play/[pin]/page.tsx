@@ -47,6 +47,8 @@ export default function PlayerGameControllerPage() {
   const selectedAnswerIdRef = useRef<string | null>(null);
 
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [isKicked, setIsKicked] = useState(false);
+  const [kickedMessage, setKickedMessage] = useState("You were removed from the game by the host.");
   const [showDoublePointsSplash, setShowDoublePointsSplash] = useState(false);
   const lastDoublePointsQuestionIndexRef = useRef<number | null>(null);
   const doublePointsTimeoutRef = useRef<any>(null);
@@ -159,6 +161,19 @@ export default function PlayerGameControllerPage() {
 
     socket.on("player:join_error", ({ message }: any) => {
       setJoinError(message || "Failed to join live room.");
+    });
+
+    socket.on("player:kicked", ({ message }: any) => {
+      setIsKicked(true);
+      if (message) setKickedMessage(message);
+      try {
+        localStorage.removeItem(`quiz_player_id_${pin}`);
+        localStorage.removeItem(`quiz_player_score_${pin}`);
+      } catch (_) {}
+      try {
+        soundEffects.playIncorrect();
+      } catch (_) {}
+      socket.disconnect();
     });
 
     const handlePlayersUpdate = ({ players }: any) => {
@@ -361,6 +376,7 @@ export default function PlayerGameControllerPage() {
       socket.off("connect", joinRoom);
       socket.off("player:joined");
       socket.off("player:join_error");
+      socket.off("player:kicked");
       socket.off("room:player_joined", handlePlayersUpdate);
       socket.off("room:players_updated", handlePlayersUpdate);
       socket.off("game:starting");
@@ -475,7 +491,7 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
       {/* JOIN ERROR MODAL */}
-      {joinError && (
+      {joinError && !isKicked && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 text-slate-900 max-w-sm w-full text-center space-y-4 shadow-2xl">
             <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mx-auto font-black">
@@ -493,8 +509,39 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
 
+      {/* PLAYER REMOVED / KICKED MODAL */}
+      {isKicked && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 text-slate-900 max-w-sm w-full text-center space-y-4 shadow-2xl border-2 border-rose-200">
+            <div className="w-16 h-16 rounded-3xl bg-rose-100 border-2 border-rose-300 text-rose-600 flex items-center justify-center text-3xl mx-auto shadow-md">
+              🚫
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Removed from Game</h2>
+              <p className="text-sm font-semibold text-slate-600 leading-relaxed">
+                {kickedMessage}
+              </p>
+            </div>
+            <div className="pt-2 space-y-2">
+              <button
+                onClick={() => router.push("/play")}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-lg transition transform active:scale-95 text-sm"
+              >
+                Join Another Game 🎮
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition text-xs"
+              >
+                Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. YOU'RE IN! (LOBBY WAITING SCREEN) */}
-      {gameState === "LOBBY" && !joinError && (
+      {gameState === "LOBBY" && !joinError && !isKicked && (
         <div className="h-full flex-1 flex flex-col items-center justify-between py-6 sm:py-8 w-full bg-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-center shadow-2xl overflow-hidden">
           <div className="space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-800/60 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider">

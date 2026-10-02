@@ -280,10 +280,38 @@ app.prepare().then(() => {
       const player = room.players.get(data.playerId);
       if (player) {
         if (!player.isBot) {
-          io.to(player.socketId).emit("player:kicked", { message: "You were removed by the host." });
+          io.to(player.socketId).emit("player:kicked", { message: "You were removed from the game by the host." });
+          const targetSock = io.sockets.sockets.get(player.socketId);
+          if (targetSock) {
+            targetSock.leave(room.pin);
+          }
         }
         room.players.delete(data.playerId);
-        broadcastLobbyUpdate(io, room, true);
+
+        if (room.status === "LOBBY") {
+          broadcastLobbyUpdate(io, room, true);
+        } else {
+          const playerList = Array.from(room.players.values()).map((p) => ({
+            id: p.id,
+            nickname: p.nickname,
+            avatar: p.avatar,
+            score: p.score || 0,
+            streak: p.streak || 0,
+            rank: p.rank || 1,
+            isBot: p.isBot,
+          }));
+          const sortedLeaderboard = [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0));
+          if (room.hostSocketId) {
+            io.to(room.hostSocketId).emit("host:players_update", {
+              players: playerList,
+              totalPlayers: room.players.size,
+              leaderboard: sortedLeaderboard,
+            });
+          }
+          io.to(room.pin).emit("room:players_updated", {
+            totalPlayers: room.players.size,
+          });
+        }
       }
     });
 
