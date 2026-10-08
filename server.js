@@ -79,6 +79,40 @@ app.prepare().then(() => {
       return;
     }
 
+    if (req.url === "/debug-db") {
+      try {
+        const count = await prisma.gameSession.count();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          status: "ok",
+          sessionsCount: count,
+          hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+          hasDirectUrl: Boolean(process.env.DIRECT_URL),
+        }));
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          status: "error",
+          message: err.message,
+          hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+          hasDirectUrl: Boolean(process.env.DIRECT_URL),
+        }));
+      }
+      return;
+    }
+
+    if (req.url === "/debug-rooms") {
+      const roomsSummary = Array.from(activeRooms.entries()).map(([pin, room]) => ({
+        pin,
+        status: room.status,
+        playersCount: room.players.size,
+        players: Array.from(room.players.values()).map(p => ({ id: p.id, nickname: p.nickname })),
+      }));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ activeRoomsCount: activeRooms.size, rooms: roomsSummary }));
+      return;
+    }
+
     try {
       await handle(req, res);
     } catch (err) {
