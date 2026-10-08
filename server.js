@@ -464,7 +464,7 @@ app.prepare().then(() => {
         totalQuestions: room.questions.length,
       });
 
-      broadcastLobbyUpdate(io, room);
+      broadcastLobbyUpdate(io, room, true);
 
       // Instant state recovery if joining or reloading mid-game
       sendPlayerCurrentState(socket, room, player);
@@ -601,9 +601,9 @@ app.prepare().then(() => {
     });
   });
 
-  server.listen(port, (err) => {
+  server.listen(port, "0.0.0.0", (err) => {
     if (err) throw err;
-    console.log(`> 🚀 QuizArena Server ready on http://${hostname}:${port}`);
+    console.log(`> 🚀 QuizArena Server ready on port ${port}`);
   });
 });
 
@@ -648,26 +648,29 @@ function broadcastLobbyUpdate(io, room, immediate = false) {
       isBot: p.isBot,
     }));
 
-    // Send full array to Host big screen
-    if (room.hostSocketId) {
-      io.to(room.hostSocketId).emit("host:players_update", {
-        players: playerList,
-        count: playerList.length,
-      });
-    }
-
-    // Send lightweight update to players
-    io.to(room.pin).emit("room:players_updated", {
+    const updatePayload = {
       players: playerList,
       count: playerList.length,
-    });
+      leaderboard: [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0)),
+    };
+
+    // Broadcast to room channel (reaches host regardless of socket ID changes)
+    io.to(room.pin).emit("host:players_update", updatePayload);
+    io.to(room.pin).emit("room:players_updated", updatePayload);
+    io.to(room.pin).emit("room:player_joined", updatePayload);
+    io.to(room.pin).emit("room:player_list", updatePayload);
+
+    // Direct emit to host socket as fallback
+    if (room.hostSocketId) {
+      io.to(room.hostSocketId).emit("host:players_update", updatePayload);
+    }
   };
 
   if (immediate) {
     if (room.lobbyUpdateTimer) clearTimeout(room.lobbyUpdateTimer);
     sendUpdates();
   } else {
-    room.lobbyUpdateTimer = setTimeout(sendUpdates, 250);
+    room.lobbyUpdateTimer = setTimeout(sendUpdates, 150);
   }
 }
 

@@ -99,6 +99,7 @@ export default function PlayerGameControllerPage() {
     };
 
     socket.on("connect", joinRoom);
+    socket.on("reconnect", joinRoom);
     if (socket.connected) {
       joinRoom();
     }

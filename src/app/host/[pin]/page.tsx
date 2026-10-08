@@ -29,6 +29,7 @@ export default function HostScreenPage() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
@@ -36,11 +37,24 @@ export default function HostScreenPage() {
     socketRef.current = socket;
 
     const joinAsHost = () => {
+      setIsConnected(true);
       socket.emit("host:create_room", { pin });
       socket.emit("host:get_players", { pin });
+      socket.emit("room:get_players", { pin });
+    };
+
+    const handleDisconnect = () => {
+      setIsConnected(false);
     };
 
     socket.on("connect", joinAsHost);
+    socket.on("reconnect", joinAsHost);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", (err: any) => {
+      setIsConnected(false);
+      console.warn("[Host Screen] Socket connection error:", err);
+    });
+
     if (socket.connected) {
       joinAsHost();
     }
@@ -71,8 +85,9 @@ export default function HostScreenPage() {
     let syncInterval: any = setInterval(() => {
       if (socket.connected) {
         socket.emit("host:get_players", { pin });
+        socket.emit("room:get_players", { pin });
       }
-    }, 1500);
+    }, 1200);
 
     socket.on("game:starting", () => {
       if (syncInterval) {
@@ -320,7 +335,12 @@ export default function HostScreenPage() {
               <img src="/logo.png" alt="Brivio" className="h-10 w-auto object-contain drop-shadow" />
               <div>
                 <span className="text-2xl font-black tracking-tight text-white block leading-none">brivio</span>
-                <span className="text-[10px] font-bold text-purple-300 tracking-wider uppercase">Live Arena Host</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-rose-500 animate-ping"}`} />
+                  <span className={`text-[10px] font-bold tracking-wider uppercase ${isConnected ? "text-emerald-300" : "text-rose-300"}`}>
+                    {isConnected ? "Live Connected" : "Connecting Realtime..."}
+                  </span>
+                </div>
               </div>
             </div>
 
