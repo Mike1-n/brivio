@@ -70,7 +70,7 @@ function simulateBotAnswer(bot, answers, timeLimitSeconds) {
   return { answerId: chosenAnswerId, responseTimeMs };
 }
 
-app.prepare().then(() => {
+function initServer() {
   const server = createServer(async (req, res) => {
     // Ultra-fast keep-alive health check for 24/7 uptime monitors
     if (req.url === "/health") {
@@ -113,13 +113,9 @@ app.prepare().then(() => {
       return;
     }
 
-    try {
-      await handle(req, res);
-    } catch (err) {
-      console.error("Error handling request:", err);
-      res.statusCode = 500;
-      res.end("Internal Server Error");
-    }
+    // Default fast JSON response for WebSocket backend
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", service: "Brivio Realtime Engine", uptime: process.uptime() }));
   });
 
   // High-performance Socket.io Server (supports 500+ concurrent players without CPU spikes)
@@ -682,7 +678,9 @@ app.prepare().then(() => {
     if (err) throw err;
     console.log(`> 🚀 QuizArena Server ready on port ${port}`);
   });
-});
+}
+
+initServer();
 
 function getQuestionCorrectAnswerText(currQ) {
   if (!currQ) return "";
