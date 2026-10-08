@@ -208,12 +208,6 @@ function initServer() {
             room.hostDisconnectTimer = null;
           }
           room.hostSocketId = socket.id;
-        } else {
-          if (room.hostDisconnectTimer) {
-            clearTimeout(room.hostDisconnectTimer);
-            room.hostDisconnectTimer = null;
-          }
-          room.hostSocketId = socket.id;
         }
 
         socket.join(data.pin);
@@ -450,26 +444,29 @@ function initServer() {
         } catch (e) {
           console.error("Auto room lookup error:", e);
         }
-      if (!room) {
-        console.log(`[GameServer] Room with PIN ${data.pin} not found in memory, creating fallback room so player can join.`);
-        room = {
-          pin: data.pin,
-          sessionId: `session_${data.pin}`,
-          hostSocketId: "",
-          hostId: "host",
-          quizId: "live_quiz",
-          quizTitle: "Live Quiz Arena",
-          status: "LOBBY",
-          questions: [],
-          currentQuestionIndex: 0,
-          questionStartTime: 0,
-          timeRemaining: 0,
-          botTimers: [],
-          players: new Map(),
-          answersDistribution: {},
-        };
-        activeRooms.set(data.pin, room);
+
+        if (!room) {
+          console.log(`[GameServer] Room with PIN ${data.pin} not found in memory, creating fallback room so player can join.`);
+          room = {
+            pin: data.pin,
+            sessionId: `session_${data.pin}`,
+            hostSocketId: "",
+            hostId: "host",
+            quizId: "live_quiz",
+            quizTitle: "Live Quiz Arena",
+            status: "LOBBY",
+            questions: [],
+            currentQuestionIndex: 0,
+            questionStartTime: 0,
+            timeRemaining: 0,
+            botTimers: [],
+            players: new Map(),
+            answersDistribution: {},
+          };
+          activeRooms.set(data.pin, room);
+        }
       }
+
       if (room.status === "ENDED") {
         socket.emit("player:join_error", { message: "This game session has ended." });
         return;
