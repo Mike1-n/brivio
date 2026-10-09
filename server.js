@@ -483,24 +483,22 @@ function initServer() {
       const cleanNick = String(data?.nickname || "").replace(/[<>'"&]/g, "").trim().substring(0, 18);
       const cleanAvatar = String(data?.avatar || "🦁").replace(/[<>'"&]/g, "").trim().substring(0, 10);
 
-      let existingPlayer = null;
-      if (data.playerId && room.players.has(data.playerId)) {
-        existingPlayer = room.players.get(data.playerId);
-      } else if (cleanNick) {
-        existingPlayer = Array.from(room.players.values()).find(
-          (p) => !p.isBot && p.nickname.toLowerCase() === cleanNick.toLowerCase()
-        );
-      }
-
-      if (!existingPlayer && cleanNick.length < 3) {
+      if (cleanNick.length < 3) {
         socket.emit("player:join_error", { message: "Nickname must be at least 3 letters." });
         return;
+      }
+
+      let existingPlayer = null;
+      // Only reconnect if the client provides their specific unique playerId stored in localStorage
+      if (data.playerId && room.players.has(data.playerId)) {
+        existingPlayer = room.players.get(data.playerId);
       }
 
       let playerId;
       let player;
 
       if (existingPlayer) {
+        // Player reconnected on same device
         playerId = existingPlayer.id;
         existingPlayer.socketId = socket.id;
         if (cleanAvatar) existingPlayer.avatar = cleanAvatar;
@@ -508,11 +506,22 @@ function initServer() {
         if (!player.roundScores) player.roundScores = {};
         player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
       } else {
+        // New player: if nickname is already taken by someone else in the room, append a number suffix
+        let finalNick = cleanNick;
+        let suffix = 2;
+        const takenNicknames = new Set(
+          Array.from(room.players.values()).map((p) => p.nickname.toLowerCase())
+        );
+        while (takenNicknames.has(finalNick.toLowerCase())) {
+          finalNick = `${cleanNick} ${suffix}`;
+          suffix++;
+        }
+
         playerId = data.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         player = {
           id: playerId,
           socketId: socket.id,
-          nickname: cleanNick,
+          nickname: finalNick,
           avatar: cleanAvatar || "🦁",
           score: 0,
           roundScores: {},
