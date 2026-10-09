@@ -2,8 +2,20 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 
+process.on("uncaughtException", (err) => {
+  console.error("[GameServer] Global Uncaught Exception:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[GameServer] Global Unhandled Rejection:", reason);
+});
+
 const port = parseInt(process.env.PORT || "3000", 10);
-const prisma = new PrismaClient();
+let prisma = null;
+try {
+  prisma = new PrismaClient();
+} catch (e) {
+  console.error("[GameServer] Prisma initialization warning:", e.message);
+}
 
 // In-memory active game rooms
 const activeRooms = new Map();
@@ -75,10 +87,11 @@ function initServer() {
 
     if (req.url === "/debug-db") {
       try {
-        const count = await prisma.gameSession.count();
+        const count = prisma ? await prisma.gameSession.count() : 0;
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           status: "ok",
+          prismaInitialized: Boolean(prisma),
           sessionsCount: count,
           hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
           hasDirectUrl: Boolean(process.env.DIRECT_URL),
@@ -87,6 +100,7 @@ function initServer() {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           status: "error",
+          prismaInitialized: Boolean(prisma),
           message: err.message,
           hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
           hasDirectUrl: Boolean(process.env.DIRECT_URL),
