@@ -406,10 +406,6 @@ export function initSocketServer(httpServer: HTTPServer) {
       let existingPlayer: RoomPlayer | undefined;
       if (data.playerId && room.players.has(data.playerId)) {
         existingPlayer = room.players.get(data.playerId);
-      } else if (cleanNick) {
-        existingPlayer = Array.from(room.players.values()).find(
-          (p) => !p.isBot && p.nickname.toLowerCase() === cleanNick.toLowerCase()
-        );
       }
 
       if (!existingPlayer && cleanNick.length < 3) {
@@ -428,6 +424,13 @@ export function initSocketServer(httpServer: HTTPServer) {
         if (!player.roundScores) player.roundScores = {};
         player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
       } else {
+        const isTaken = Array.from(room.players.values()).some(
+          (p) => p.nickname.toLowerCase() === cleanNick.toLowerCase()
+        );
+        if (isTaken) {
+          socket.emit("player:join_error", { message: "Username is already taken. Please choose another username." });
+          return;
+        }
         playerId = data.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const avatar = data.avatar || "🦊";
         player = {

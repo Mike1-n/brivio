@@ -506,22 +506,20 @@ function initServer() {
         if (!player.roundScores) player.roundScores = {};
         player.score = Object.values(player.roundScores).reduce((sum, pts) => sum + pts, 0);
       } else {
-        // New player: if nickname is already taken by someone else in the room, append a number suffix
-        let finalNick = cleanNick;
-        let suffix = 2;
-        const takenNicknames = new Set(
-          Array.from(room.players.values()).map((p) => p.nickname.toLowerCase())
+        // Reject if username/nickname is already taken in this room
+        const isTaken = Array.from(room.players.values()).some(
+          (p) => p.nickname.toLowerCase() === cleanNick.toLowerCase()
         );
-        while (takenNicknames.has(finalNick.toLowerCase())) {
-          finalNick = `${cleanNick} ${suffix}`;
-          suffix++;
+        if (isTaken) {
+          socket.emit("player:join_error", { message: "Username is already taken. Please choose another username." });
+          return;
         }
 
         playerId = data.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         player = {
           id: playerId,
           socketId: socket.id,
-          nickname: finalNick,
+          nickname: cleanNick,
           avatar: cleanAvatar || "🦁",
           score: 0,
           roundScores: {},
