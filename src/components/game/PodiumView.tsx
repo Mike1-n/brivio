@@ -42,14 +42,14 @@ export function PodiumView({ podium, fullRanking, totalPlayers, onPlayAgain }: P
         angle: 60,
         spread: 55,
         origin: { x: 0, y: 0.7 },
-        colors: ["#A855F7", "#EC4899", "#F59E0B", "#10B981", "#3B82F6"],
+        colors: ["#A855F7", "#EC4899", "#F59E0B", "#3BAF32", "#3B82F6"],
       });
       confetti({
         particleCount: 4,
         angle: 120,
         spread: 55,
         origin: { x: 1, y: 0.7 },
-        colors: ["#A855F7", "#EC4899", "#F59E0B", "#10B981", "#3B82F6"],
+        colors: ["#A855F7", "#EC4899", "#F59E0B", "#3BAF32", "#3B82F6"],
       });
 
       if (Date.now() < end) {

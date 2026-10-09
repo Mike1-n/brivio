@@ -421,14 +421,20 @@ export default function PlayerGameControllerPage() {
     { bg: "bg-[#EF4444] hover:bg-[#DC2626] border-red-600 active:bg-[#B91C1C]", icon: "▲", name: "Red" },
     { bg: "bg-[#3B82F6] hover:bg-[#2563EB] border-blue-600 active:bg-[#1D4ED8]", icon: "◆", name: "Blue" },
     { bg: "bg-[#F59E0B] hover:bg-[#D97706] border-amber-600 active:bg-[#B45309]", icon: "●", name: "Amber" },
-    { bg: "bg-[#10B981] hover:bg-[#059669] border-emerald-600 active:bg-[#047857]", icon: "■", name: "Green" },
+    { bg: "bg-[#3BAF32] hover:bg-[#32992A] border-emerald-700 active:bg-[#256F1F]", icon: "■", name: "Green" },
   ];
 
   // Visual Timer Progress percentage
   const progressPercent = totalTimeLimit > 0 ? Math.min(100, Math.max(0, (timeRemaining / totalTimeLimit) * 100)) : 0;
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-gradient-to-b from-[#3b0764] via-[#4c1d95] to-[#2e1065] flex flex-col justify-between p-2.5 sm:p-4 font-sans text-white select-none max-w-md sm:max-w-lg mx-auto w-full overflow-hidden">
+    <div
+      className={`h-[100dvh] max-h-[100dvh] flex flex-col justify-between font-sans text-white select-none w-full overflow-hidden ${
+        gameState === "LOBBY" && !joinError
+          ? "bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-4 sm:p-6"
+          : "bg-gradient-to-b from-[#3b0764] via-[#4c1d95] to-[#2e1065] p-2.5 sm:p-4 max-w-md sm:max-w-lg mx-auto"
+      }`}
+    >
       {/* ========================================================================= */}
       {/* 3-SECOND DOUBLE POINTS ANIMATED SPLASH SCREEN OVERLAY */}
       {/* ========================================================================= */}
@@ -494,32 +500,41 @@ export default function PlayerGameControllerPage() {
         </div>
       )}
 
-      {/* 1. YOU'RE IN! (LOBBY WAITING SCREEN) */}
+      {/* 1. YOU'RE IN! (LOBBY WAITING SCREEN - FULL PAGE) */}
       {gameState === "LOBBY" && !joinError && (
-        <div className="h-full flex-1 flex flex-col items-center justify-between py-6 sm:py-8 w-full bg-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-center shadow-2xl overflow-hidden">
-          <div className="space-y-2 pt-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-800/60 border border-emerald-400/40 text-emerald-100 text-xs font-bold uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+        <div className="h-full flex-1 flex flex-col items-center justify-between py-6 sm:py-10 w-full max-w-md mx-auto text-center">
+          <div className="space-y-3 pt-4 sm:pt-6">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-800/80 border border-emerald-400/40 text-emerald-100 text-xs sm:text-sm font-black uppercase tracking-wider shadow-md">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping" />
               Connected to Game
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">You&apos;re in!</h1>
-            <p className="text-emerald-100 text-xs sm:text-sm font-semibold">See your nickname on screen?</p>
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white drop-shadow-md">
+              You&apos;re in!
+            </h1>
+            <p className="text-emerald-100 text-sm sm:text-base font-semibold">
+              See your nickname on the main screen?
+            </p>
           </div>
 
           {/* Player Badge Card */}
-          <div className="w-full max-w-xs bg-white text-slate-900 rounded-2xl p-4 shadow-xl space-y-2 text-center border-2 border-emerald-300/40 my-auto">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center text-2xl mx-auto shadow-md">
+          <div className="w-full max-w-xs bg-white text-slate-900 rounded-3xl p-6 shadow-2xl space-y-3 text-center border-4 border-emerald-400/50 my-auto animate-fade-in">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 border-4 border-emerald-500 flex items-center justify-center text-4xl mx-auto shadow-inner">
               {avatar}
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-black text-slate-900">{nickname}</h2>
-              <p className="text-xs font-bold text-slate-500">Game PIN: <span className="font-mono text-emerald-600 font-extrabold">{pin}</span></p>
+            <div className="space-y-1">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 truncate">
+                {nickname}
+              </h2>
+              <p className="text-xs font-bold text-slate-500">
+                Game PIN: <span className="font-mono text-emerald-600 font-black text-sm">{pin}</span>
+              </p>
             </div>
           </div>
 
-          <div className="w-full bg-emerald-800/40 backdrop-blur-md rounded-2xl p-3 flex items-center justify-between border border-emerald-400/30 text-white font-bold text-xs">
-            <span>👥 {totalPlayers} Players in Lobby</span>
-            <span className="text-emerald-200">Waiting for host...</span>
+          {/* Waiting for host footer */}
+          <div className="w-full max-w-xs bg-emerald-900/50 backdrop-blur-md rounded-2xl py-3.5 px-5 flex items-center justify-center gap-2.5 border border-emerald-400/30 text-white font-bold text-xs sm:text-sm shadow-lg mb-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+            <span className="text-emerald-100 font-extrabold tracking-wide">Waiting for host to start...</span>
           </div>
         </div>
       )}
@@ -624,7 +639,7 @@ export default function PlayerGameControllerPage() {
                   <span className="bg-[#E21B3C] rounded-[1px]" />
                   <span className="bg-[#1368CE] rounded-[1px]" />
                   <span className="bg-[#D89E00] rounded-[1px]" />
-                  <span className="bg-[#26890C] rounded-[1px]" />
+                  <span className="bg-[#3BAF32] rounded-[1px]" />
                 </div>
                 <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
               </div>
@@ -700,7 +715,7 @@ export default function PlayerGameControllerPage() {
                   { bg: "bg-[#E21B3C] hover:bg-[#c91835] border-b-4 border-[#9c1228] active:border-b-0 active:translate-y-1", icon: "▲" },
                   { bg: "bg-[#1368CE] hover:bg-[#1059b0] border-b-4 border-[#0d4a94] active:border-b-0 active:translate-y-1", icon: "◆" },
                   { bg: "bg-[#D89E00] hover:bg-[#bd8a00] border-b-4 border-[#9e7400] active:border-b-0 active:translate-y-1", icon: "●" },
-                  { bg: "bg-[#26890C] hover:bg-[#1f7009] border-b-4 border-[#1a5e08] active:border-b-0 active:translate-y-1", icon: "■" },
+                  { bg: "bg-[#3BAF32] hover:bg-[#32992A] border-b-4 border-[#24731E] active:border-b-0 active:translate-y-1", icon: "■" },
                 ];
 
                 const style = isTF

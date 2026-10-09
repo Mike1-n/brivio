@@ -168,8 +168,8 @@ export function SarahCaricature() {
                 <stop offset="100%" stopColor="#9a3412" />
               </linearGradient>
               <linearGradient id="sarahHoodie" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#047857" />
+                <stop offset="0%" stopColor="#3BAF32" />
+                <stop offset="100%" stopColor="#24731E" />
               </linearGradient>
             </defs>
 

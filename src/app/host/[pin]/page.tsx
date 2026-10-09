@@ -556,7 +556,7 @@ export default function HostScreenPage() {
                 { bg: "bg-[#E21B3C] border-b-2 sm:border-b-4 border-[#9c1228]", icon: "▲" },
                 { bg: "bg-[#1368CE] border-b-2 sm:border-b-4 border-[#0d4a94]", icon: "◆" },
                 { bg: "bg-[#D89E00] border-b-2 sm:border-b-4 border-[#9e7400]", icon: "●" },
-                { bg: "bg-[#26890C] border-b-2 sm:border-b-4 border-[#1a5e08]", icon: "■" },
+                { bg: "bg-[#3BAF32] border-b-2 sm:border-b-4 border-[#24731E]", icon: "■" },
               ];
 
               const style = isTF

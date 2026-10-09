@@ -777,7 +777,7 @@ export default function ChallengeGamePage() {
                 <span className="bg-[#E21B3C] rounded-[1px]" />
                 <span className="bg-[#1368CE] rounded-[1px]" />
                 <span className="bg-[#D89E00] rounded-[1px]" />
-                <span className="bg-[#26890C] rounded-[1px]" />
+                <span className="bg-[#3BAF32] rounded-[1px]" />
               </div>
               <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
             </div>
@@ -881,7 +881,7 @@ export default function ChallengeGamePage() {
                 <span className="bg-[#E21B3C] rounded-[1px]" />
                 <span className="bg-[#1368CE] rounded-[1px]" />
                 <span className="bg-[#D89E00] rounded-[1px]" />
-                <span className="bg-[#26890C] rounded-[1px]" />
+                <span className="bg-[#3BAF32] rounded-[1px]" />
               </div>
               <span className="tracking-tight text-slate-900 font-extrabold">Quiz</span>
             </div>
@@ -1070,7 +1070,7 @@ export default function ChallengeGamePage() {
                   { bg: "bg-[#E21B3C] hover:bg-[#c91835] border-b-4 border-[#9c1228] active:border-b-0 active:translate-y-1", icon: "▲" },
                   { bg: "bg-[#1368CE] hover:bg-[#1059b0] border-b-4 border-[#0d4a94] active:border-b-0 active:translate-y-1", icon: "◆" },
                   { bg: "bg-[#D89E00] hover:bg-[#bd8a00] border-b-4 border-[#9e7400] active:border-b-0 active:translate-y-1", icon: "●" },
-                  { bg: "bg-[#26890C] hover:bg-[#1f7009] border-b-4 border-[#1a5e08] active:border-b-0 active:translate-y-1", icon: "■" },
+                  { bg: "bg-[#3BAF32] hover:bg-[#32992A] border-b-4 border-[#24731E] active:border-b-0 active:translate-y-1", icon: "■" },
                 ];
 
                 const style = isTF

@@ -76,7 +76,27 @@ function simulateBotAnswer(bot, answers, timeLimitSeconds) {
   return { answerId: chosenAnswerId, responseTimeMs };
 }
 
-function initServer() {
+const isStandalone = Boolean(
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.STANDALONE_WS === "true"
+);
+
+async function initServer() {
+  let handle = null;
+  if (!isStandalone) {
+    try {
+      const next = require("next");
+      const dev = process.env.NODE_ENV !== "production";
+      const nextApp = next({ dev, hostname: "0.0.0.0", port });
+      handle = nextApp.getRequestHandler();
+      await nextApp.prepare();
+      console.log("> [Next.js] App prepared and attached to HTTP server");
+    } catch (nextErr) {
+      console.warn("[Next.js] Could not load Next.js handler (running standalone):", nextErr.message);
+    }
+  }
+
   const server = createServer(async (req, res) => {
     // Ultra-fast keep-alive health check for 24/7 uptime monitors
     if (req.url === "/health") {
@@ -119,6 +139,16 @@ function initServer() {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ activeRoomsCount: activeRooms.size, rooms: roomsSummary }));
       return;
+    }
+
+    // Pass to Next.js handler if available
+    if (handle) {
+      try {
+        handle(req, res);
+        return;
+      } catch (e) {
+        console.error("Next.js handler error:", e);
+      }
     }
 
     // Default fast JSON response for WebSocket backend

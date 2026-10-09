@@ -21,7 +21,7 @@ const SHAPES = [
   { shape: "▲", name: "Triangle", colorClass: "btn-choice-red", bgLight: "bg-red-500", text: "text-white" },
   { shape: "◆", name: "Diamond", colorClass: "btn-choice-blue", bgLight: "bg-blue-500", text: "text-white" },
   { shape: "●", name: "Circle", colorClass: "btn-choice-yellow", bgLight: "bg-amber-500", text: "text-white" },
-  { shape: "■", name: "Square", colorClass: "btn-choice-green", bgLight: "bg-emerald-500", text: "text-white" },
+  { shape: "■", name: "Square", colorClass: "btn-choice-green", bgLight: "bg-[#3BAF32]", text: "text-white" },
 ];
 
 export function AnswerButton({

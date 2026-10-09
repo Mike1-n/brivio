@@ -65,8 +65,21 @@ body {
   color: #FFFFFF;
 }
 .answer-bar-green {
-  background: #10B981;
+  background: #3BAF32;
   color: #FFFFFF;
+}
+
+.btn-choice-red {
+  background: #EF4444;
+}
+.btn-choice-blue {
+  background: #3B82F6;
+}
+.btn-choice-yellow {
+  background: #F59E0B;
+}
+.btn-choice-green {
+  background: #3BAF32;
 }
 
 /* Custom scrollbars */
