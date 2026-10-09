@@ -9,7 +9,8 @@ export function getSocket(): Socket {
   if (!socketInstance) {
     let url = process.env.NEXT_PUBLIC_SOCKET_URL;
     
-    if (!url) {
+    // Automatically redirect from old suspended Render URL or empty URL to active Railway backend
+    if (!url || url.includes("onrender.com") || url.includes("vercel.app")) {
       if (typeof window !== "undefined") {
         if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
           url = window.location.origin;
